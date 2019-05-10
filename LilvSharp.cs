@@ -234,14 +234,14 @@ namespace LilvSharp
 		public string AsString => Natives.lilv_node_as_string (handle).ToManagedString ();
 		public string AsUri => Natives.lilv_node_as_uri (handle).ToManagedString ();
 		
-		public LiteralType LiteralType => IsLiteral ?
+		public LiteralType LiteralType =>
 			IsBlank ? LiteralType.Blank :
 			IsBool ? LiteralType.Bool :
 			IsFloat ? LiteralType.Float :
 			IsInt ? LiteralType.Int :
 			IsString ? LiteralType.String :
 			IsUri ? LiteralType.Uri :
-			LiteralType.None : LiteralType.None;
+			LiteralType.None;
 		
 		public object Value => IsLiteral ?
 			(IsBlank ? (object) AsBlank :
@@ -315,6 +315,119 @@ namespace LilvSharp
 			maxValues = max;
 			defValues = def;
 		}
+
+		// TODO: it skips "..." arguments
+		public int NumPortsOfClass (Node class1) => (int) Natives.lilv_plugin_get_num_ports_of_class (handle, class1.Handle);
+		
+		public bool HasLatency => Natives.lilv_plugin_has_latency (handle);
+		public int LatencyPortIndex => (int) Natives.lilv_plugin_get_latency_port_index (handle);
+		public Port GetPortByIndex (int index) => new Port (handle, Natives.lilv_plugin_get_port_by_index (handle, (uint) index));
+		public Port GetPortBySymbol (Node symbol) => new Port (handle, Natives.lilv_plugin_get_port_by_symbol (handle, symbol.Handle));
+		public Port GetPortByDesignation (Node portClass, Node designation) => new Port (handle, Natives.lilv_plugin_get_port_by_designation (handle, portClass.Handle, designation.Handle));
+		
+		public Node Project => new Node (Natives.lilv_plugin_get_project (handle));
+		public Node AuthorName => new Node (Natives.lilv_plugin_get_author_name (handle));
+		public Node AuthorEmail => new Node (Natives.lilv_plugin_get_author_email (handle));
+		public Node AuthorHomepage => new Node (Natives.lilv_plugin_get_author_homepage (handle));
+		public bool IsReplaced => Natives.lilv_plugin_is_replaced (handle);
+		
+		public void WriteDescription (Plugin plugin, Node baseUri, IntPtr file) => Natives.lilv_plugin_write_description (handle, plugin.Handle, baseUri.Handle, file);
+		
+		public void WriteManifestEntry (Plugin plugin, Node baseUri, IntPtr manifestFile, string pluginFilePath)
+		{
+			var ptr = Marshal.StringToHGlobalAnsi (pluginFilePath);
+			Natives.lilv_plugin_write_manifest_entry (handle, plugin.Handle, baseUri.Handle, manifestFile, ptr);
+			Marshal.FreeHGlobal (ptr);
+		}
+		
+		public Nodes GetRelated (Node type) => new Nodes (Natives.lilv_plugin_get_related (handle, type.Handle));
+	}
+	
+	public class Port
+	{
+		IntPtr plugin;
+		IntPtr port;
+		
+		public Port (IntPtr plugin, IntPtr port)
+		{
+			this.plugin = plugin;
+			this.port = port;
+		}
+		
+		public IntPtr PluginHandle => plugin;
+		public IntPtr PortHandle => port;
+		
+		public Node Node => new Node (Natives.lilv_port_get_node (plugin, port));
+
+		public Nodes GetValue (Node predicate) => new Nodes (Natives.lilv_port_get_value (plugin, port, predicate.Handle));
+
+		public Node Get (Node predicate) => new Node (Natives.lilv_port_get (plugin, port, predicate.Handle));
+		
+		public Nodes Properties => new Nodes (Natives.lilv_port_get_properties (plugin, port));
+		
+		public bool HasProperty (Node propertyUri) => Natives.lilv_port_has_property (plugin, port, propertyUri.Handle);
+		
+		public bool SupportsEvent (Node eventType) => Natives.lilv_port_supports_event (plugin, port, eventType.Handle);
+
+		public int Index => (int) Natives.lilv_port_get_index (plugin, port);
+		public Node Symbol => new Node (Natives.lilv_port_get_symbol (plugin, port));
+		public Node Name => new Node (Natives.lilv_port_get_name (plugin, port));
+		public Nodes Classes => new Nodes (Natives.lilv_port_get_classes (plugin, port));
+
+		public bool Is (Node portClass) => Natives.lilv_port_is_a (plugin, port, portClass.Handle);
+
+		public void GetRange (out Node deflt, out Node minimum, out Node maximum)
+		{
+			IntPtr min = IntPtr.Zero, max = IntPtr.Zero, def = IntPtr.Zero;
+			unsafe {
+				IntPtr* minp = &min, maxp = &max, defp = &def;
+				Natives.lilv_port_get_range (plugin, port, (IntPtr) defp, (IntPtr) minp, (IntPtr) maxp);
+			}
+			deflt = new Node (def);
+			minimum = new Node (min);
+			maximum = new Node (max);
+		}
+		
+		public ScalePoints ScalePoints => new ScalePoints (Natives.lilv_port_get_scale_points (plugin, port));
+	}
+
+	public class ScalePoints : LilvEnumerable<ScalePoint>
+	{
+		public ScalePoints (IntPtr handle)
+			: base (handle,
+				h => Natives.lilv_scale_points_free (h),
+				h => (int) Natives.lilv_scale_points_size (h),
+				h => new Iterator (h))
+		{
+		}
+		
+		class Iterator : LilvIterator<ScalePoint>
+		{
+			public Iterator (IntPtr collection)
+				: base (collection,
+					Natives.lilv_scale_points_begin,
+					Natives.lilv_scale_points_next,
+					(c,i) => new ScalePoint (Natives.lilv_scale_points_get (c, i)),
+					Natives.lilv_scale_points_is_end)
+			{
+			}
+		}
+	}
+	
+	public class ScalePoint
+	{
+		IntPtr handle;
+		
+		public ScalePoint (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+		
+		public IntPtr Handle => handle;
+		
+		public Node Label => new Node (Natives.lilv_scale_point_get_label (handle));
+
+		public Node Value => new Node (Natives.lilv_scale_point_get_value (handle));
 	}
 }
 
