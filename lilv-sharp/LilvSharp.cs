@@ -384,6 +384,9 @@ namespace LilvSharp
 
 
 		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
+
+		public Instance Instantiate (double sampleRate, LV2Sharp.Feature features) =>
+			new Instance (Natives.lilv_plugin_instantiate (handle, sampleRate, features.Handle));
 	}
 	
 	public class Port
@@ -633,11 +636,49 @@ namespace LilvSharp
 		}
 
 		public IntPtr Handle => handle;
+
+		public void Dispose () => Natives.lilv_instance_free (handle);
+
+		// This is inline.
+		//public string Uri => Marshal.PtrToStringAnsi (Natives.lilv_instance_get_uri (handle));
+
+		// This is inline.
+		//public void ConnectPort (uint portIndex, IntPtr dataLocation) => Natives.lilv_instance_connect_port (handle, portIndex, dataLocation);
+
+		// This is inline.
+		//public void Activate () => Natives.lilv_instance_activate (handle);
+
+		// This is inline.
+		//public void Run (uint sampleCount) => Natives.lilv_instance_run (handle, sampleCount);
+
+		// This is inline.
+		//public void Deactivate () => Natives.lilv_instance_deactivate (handle);
+
+		// This is inline.
+		//public IntPtr GetExtensionData (string uri) => uri.Fixed (uriPtr => Natives.lilv_instance_get_extension_data (handle, uriPtr));
+
+		// This is inline.
+		//LV2Sharp.Descriptor Descriptor => new LV2Sharp.Descriptor (Natives.lilv_instance_get_descriptor (handle));
+
+		// This is inline.
+		//LV2Sharp.LV2Handle LV2Handle => new LV2Sharp.LV2Handle (Natives.lilv_instance_get_handle (handle));
 	}
 }
 
 namespace LV2Sharp
 {
+	public class LV2Handle
+	{
+		IntPtr handle;
+		
+		public LV2Handle (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
+
 	public class URIDMap
 	{
 		IntPtr handle;
@@ -668,6 +709,18 @@ namespace LV2Sharp
 		IntPtr handle;
 		
 		public Feature (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
+
+	public class Descriptor
+	{
+		IntPtr handle;
+		
+		public Descriptor (IntPtr handle)
 		{
 			this.handle = handle;
 		}

@@ -47,6 +47,16 @@ public class Driver
 			foreach (var ui in plugin.UIs)
 				Console.WriteLine ($"    ---- UI {ui.Uri.AsUri}");
 		}
+
+		var plugin1 = world.GetAllPlugins ().Last ();
+		var instance = plugin1.Instantiate (44100, new LV2Sharp.Feature (IntPtr.Zero));
+		foreach (var ppi in instance.GetType ().GetProperties ().Where (_ => _.PropertyType != typeof (Node))) {
+			Console.WriteLine ($"    {ppi}: {ppi.GetValue (instance)}");
+		}
+		foreach (var ppi in instance.GetType ().GetProperties ().Where (_ => _.PropertyType == typeof (Node))) {
+			var node = (Node) ppi.GetValue (instance);
+			Console.WriteLine ($"    [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
+		}
 	}
 }
 
