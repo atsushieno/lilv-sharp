@@ -30,7 +30,7 @@ public class Driver
 				var node = (Node) ppi.GetValue (plugin);
 				Console.WriteLine ($"  [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
 			}
-			for (int i = 0; i < plugin.NumPorts; i++) {
+			for (uint i = 0; i < plugin.NumPorts; i++) {
 				Console.WriteLine ($"    ---- Port {i} ----");
 				var port = plugin.GetPortByIndex (i);
 				foreach (var ppi in port.GetType ().GetProperties ().Where (_ => _.PropertyType != typeof (Node))) {

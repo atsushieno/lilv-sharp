@@ -92,10 +92,10 @@ namespace LilvSharp
 	{
 		IntPtr handle;
 		Action<IntPtr> on_dispose;
-		Func<IntPtr,int> get_count;
+		Func<IntPtr,uint> get_count;
 		Func<IntPtr,IEnumerator<T>> create_iterator;
 		
-		internal LilvEnumerable (IntPtr handle, Action<IntPtr> onDispose, Func<IntPtr,int> getCount, Func<IntPtr,IEnumerator<T>> createIterator)
+		internal LilvEnumerable (IntPtr handle, Action<IntPtr> onDispose, Func<IntPtr,uint> getCount, Func<IntPtr,IEnumerator<T>> createIterator)
 		{
 			this.handle = handle;
 			on_dispose = onDispose;
@@ -110,7 +110,7 @@ namespace LilvSharp
 		
 		public IntPtr Handle => handle;
 		
-		public int Count => get_count (handle);
+		public uint Count => get_count (handle);
 		
 		public IEnumerator<T> GetEnumerator () => create_iterator (handle);
 		
@@ -173,7 +173,7 @@ namespace LilvSharp
 		public PluginClasses (IntPtr handle)
 			: base (handle,
 				h => Natives.lilv_plugin_classes_free (h),
-				h => (int) Natives.lilv_plugin_classes_size (h),
+				h => Natives.lilv_plugin_classes_size (h),
 				h => new Iterator (h))
 		{
 		}
@@ -231,8 +231,8 @@ namespace LilvSharp
 	{
 		public Nodes (IntPtr handle)
 			: base (handle,
-				h => Natives.lilv_nodes_free (h),
-				h => (int) Natives.lilv_nodes_size (h),
+				Natives.lilv_nodes_free,
+				Natives.lilv_nodes_size,
 				h => new Iterator (h))
 		{
 		}
@@ -300,7 +300,7 @@ namespace LilvSharp
 		public Plugins (IntPtr handle)
 			: base (handle,
 				h => {},
-				h => (int) Natives.lilv_plugins_size (h),
+				Natives.lilv_plugins_size,
 				h => new Iterator (h))
 		{
 		}
@@ -344,7 +344,7 @@ namespace LilvSharp
 		public bool HasFeature (Node featureUri) => Natives.lilv_plugin_has_feature (handle, featureUri.Handle);
 		public bool HasExtensionData (Node uri) => Natives.lilv_plugin_has_extension_data (handle, uri.Handle);
 
-		public int NumPorts => (int) Natives.lilv_plugin_get_num_ports (handle);
+		public uint NumPorts => Natives.lilv_plugin_get_num_ports (handle);
 
 		public void GetPortRangesFloat (out double minValues, out double maxValues, out double defValues)
 		{
@@ -359,11 +359,11 @@ namespace LilvSharp
 		}
 
 		// TODO: it skips "..." arguments
-		public int NumPortsOfClass (Node class1) => (int) Natives.lilv_plugin_get_num_ports_of_class (handle, class1.Handle);
+		public uint NumPortsOfClass (Node class1) => Natives.lilv_plugin_get_num_ports_of_class (handle, class1.Handle);
 		
 		public bool HasLatency => Natives.lilv_plugin_has_latency (handle);
-		public int LatencyPortIndex => (int) Natives.lilv_plugin_get_latency_port_index (handle);
-		public Port GetPortByIndex (int index) => new Port (handle, Natives.lilv_plugin_get_port_by_index (handle, (uint) index));
+		public uint LatencyPortIndex => Natives.lilv_plugin_get_latency_port_index (handle);
+		public Port GetPortByIndex (uint index) => new Port (handle, Natives.lilv_plugin_get_port_by_index (handle, index));
 		public Port GetPortBySymbol (Node symbol) => new Port (handle, Natives.lilv_plugin_get_port_by_symbol (handle, symbol.Handle));
 		public Port GetPortByDesignation (Node portClass, Node designation) => new Port (handle, Natives.lilv_plugin_get_port_by_designation (handle, portClass.Handle, designation.Handle));
 		
@@ -415,7 +415,7 @@ namespace LilvSharp
 		
 		public bool SupportsEvent (Node eventType) => Natives.lilv_port_supports_event (plugin, port, eventType.Handle);
 
-		public int Index => (int) Natives.lilv_port_get_index (plugin, port);
+		public uint Index => Natives.lilv_port_get_index (plugin, port);
 		public Node Symbol => new Node (Natives.lilv_port_get_symbol (plugin, port));
 		public Node Name => new Node (Natives.lilv_port_get_name (plugin, port));
 		public Nodes Classes => new Nodes (Natives.lilv_port_get_classes (plugin, port));
@@ -441,8 +441,8 @@ namespace LilvSharp
 	{
 		public ScalePoints (IntPtr handle)
 			: base (handle,
-				h => Natives.lilv_scale_points_free (h),
-				h => (int) Natives.lilv_scale_points_size (h),
+				Natives.lilv_scale_points_free,
+				Natives.lilv_scale_points_size,
 				h => new Iterator (h))
 		{
 		}
@@ -479,7 +479,7 @@ namespace LilvSharp
 	public class UIs : LilvEnumerable<UI>
 	{
 		public UIs (IntPtr handle)
-			: base (handle, Natives.lilv_uis_free, h => (int) Natives.lilv_uis_size (h), h => new Iterator (h))
+			: base (handle, Natives.lilv_uis_free, Natives.lilv_uis_size, h => new Iterator (h))
 		{
 		}
 		
@@ -512,7 +512,7 @@ namespace LilvSharp
 
 		public bool Is (Node classUri) => Natives.lilv_ui_is_a (handle, classUri.Handle);
 		
-		public int IsSupported (UISupportedFunc func, Node containerType, out Node uiType)
+		public bool IsSupported (UISupportedFunc func, Node containerType, out Node uiType)
 		{
 			uint Cb (IntPtr containerTypeUri, IntPtr uiTypeUri)
 			{
@@ -530,7 +530,7 @@ namespace LilvSharp
 				void* rptr = &ptr;
 				var ret = Natives.lilv_ui_is_supported (handle, Cb, containerType.Handle, (IntPtr) rptr);
 				uiType = new Node (ptr);
-				return (int) ret;
+				return ret != 0;
 			}
 		}
 	}
@@ -591,7 +591,7 @@ namespace LilvSharp
 
 		public override int GetHashCode () => (int) handle;
 
-		public int NumProperties => (int) Natives.lilv_state_get_num_properties (handle);
+		public uint NumProperties => Natives.lilv_state_get_num_properties (handle);
 
 		public Node PluginUri => new Node (Natives.lilv_state_get_plugin_uri (handle));
 
