@@ -4,30 +4,30 @@ using System.Runtime.InteropServices;
 using time_t = System.IntPtr;
 using size_t = System.IntPtr;
 using LV2_Handle = System.IntPtr;
-using delegate5 = LilvSharp.Delegates.LV2_Descriptor_Function; // lv2.h (394,3)
+using delegate5 = LilvSharp.NativeInterop.Delegates.LV2_Descriptor_Function; // lv2.h (394,3)
 using LV2_Lib_Handle = System.IntPtr;
-using delegate8 = LilvSharp.Delegates.LV2_Lib_Descriptor_Function; // lv2.h (463,3)
+using delegate8 = LilvSharp.NativeInterop.Delegates.LV2_Lib_Descriptor_Function; // lv2.h (463,3)
 using LV2_URID_Map_Handle = System.IntPtr;
 using LV2_URID_Unmap_Handle = System.IntPtr;
-using delegate11 = LilvSharp.Delegates.LilvGetPortValueFunc; // lilv.h (1267,23)
-using delegate12 = LilvSharp.Delegates.LilvSetPortValueFunc; // lilv.h (1425,16)
-using delegate13 = LilvSharp.Delegates.LilvUISupportedFunc; // lilv.h (1798,20)
-using delegate0 = LilvSharp.Delegates.delegate0;
-using delegate1 = LilvSharp.Delegates.delegate1;
-using delegate2 = LilvSharp.Delegates.delegate2;
-using delegate3 = LilvSharp.Delegates.delegate3;
-using delegate4 = LilvSharp.Delegates.delegate4;
-using LV2_Descriptor_Function = LilvSharp.Delegates.LV2_Descriptor_Function;
-using delegate6 = LilvSharp.Delegates.delegate6;
-using delegate7 = LilvSharp.Delegates.delegate7;
-using LV2_Lib_Descriptor_Function = LilvSharp.Delegates.LV2_Lib_Descriptor_Function;
-using delegate9 = LilvSharp.Delegates.delegate9;
-using delegate10 = LilvSharp.Delegates.delegate10;
-using LilvGetPortValueFunc = LilvSharp.Delegates.LilvGetPortValueFunc;
-using LilvSetPortValueFunc = LilvSharp.Delegates.LilvSetPortValueFunc;
-using LilvUISupportedFunc = LilvSharp.Delegates.LilvUISupportedFunc;
+using delegate11 = LilvSharp.NativeInterop.Delegates.LilvGetPortValueFunc; // lilv.h (1267,23)
+using delegate12 = LilvSharp.NativeInterop.Delegates.LilvSetPortValueFunc; // lilv.h (1425,16)
+using delegate13 = LilvSharp.NativeInterop.Delegates.LilvUISupportedFunc; // lilv.h (1798,20)
+using delegate0 = LilvSharp.NativeInterop.Delegates.delegate0;
+using delegate1 = LilvSharp.NativeInterop.Delegates.delegate1;
+using delegate2 = LilvSharp.NativeInterop.Delegates.delegate2;
+using delegate3 = LilvSharp.NativeInterop.Delegates.delegate3;
+using delegate4 = LilvSharp.NativeInterop.Delegates.delegate4;
+using LV2_Descriptor_Function = LilvSharp.NativeInterop.Delegates.LV2_Descriptor_Function;
+using delegate6 = LilvSharp.NativeInterop.Delegates.delegate6;
+using delegate7 = LilvSharp.NativeInterop.Delegates.delegate7;
+using LV2_Lib_Descriptor_Function = LilvSharp.NativeInterop.Delegates.LV2_Lib_Descriptor_Function;
+using delegate9 = LilvSharp.NativeInterop.Delegates.delegate9;
+using delegate10 = LilvSharp.NativeInterop.Delegates.delegate10;
+using LilvGetPortValueFunc = LilvSharp.NativeInterop.Delegates.LilvGetPortValueFunc;
+using LilvSetPortValueFunc = LilvSharp.NativeInterop.Delegates.LilvSetPortValueFunc;
+using LilvUISupportedFunc = LilvSharp.NativeInterop.Delegates.LilvUISupportedFunc;
 
-namespace LilvSharp {
+namespace LilvSharp.NativeInterop {
 [StructLayout (LayoutKind.Sequential)]
 internal struct LV2_Feature // lv2.h (143, 16)
 {

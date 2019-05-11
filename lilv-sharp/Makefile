@@ -13,5 +13,5 @@ lib: generated-sources
 
 
 generated-sources:
-	# mono --debug $(NCLANG)/samples/PInvokeGenerator/bin/Debug/net462/PInvokeGenerator.exe --lib:lilv-0 --ns:Lv2Sharp $(LV2_HEADERS) --match:lv2 --arg:"-Duint32_t=unsigned int"  > lv2-interop.cs
-	mono --debug $(NCLANG)/samples/PInvokeGenerator/bin/Debug/net462/PInvokeGenerator.exe --lib:lilv-0 --ns:LilvSharp /usr/include/lilv-0/lilv/lilv.h --match:lv2 --match:lilv --arg:"-Duint32_t=unsigned int" --arg:"-DLV2_URID=unsigned int" > lilv-interop.cs
+	# mono --debug $(NCLANG)/samples/PInvokeGenerator/bin/Debug/net462/PInvokeGenerator.exe --lib:lilv-0 --ns:Lv2Sharp.NativeInterop $(LV2_HEADERS) --match:lv2 --arg:"-Duint32_t=unsigned int"  > lv2-interop.cs
+	mono --debug $(NCLANG)/samples/PInvokeGenerator/bin/Debug/net462/PInvokeGenerator.exe --lib:lilv-0 --ns:LilvSharp.NativeInterop /usr/include/lilv-0/lilv/lilv.h --match:lv2 --match:lilv --arg:"-Duint32_t=unsigned int" --arg:"-DLV2_URID=unsigned int" > lilv-interop.cs
