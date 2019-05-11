@@ -93,13 +93,13 @@ namespace LilvSharp
 		
 		public Plugins GetAllPlugins () => new Plugins (Natives.lilv_world_get_all_plugins (handle), allocator);
 		
-		public Node GetSymbol (Node subject) => new Node (Natives.lilv_world_get_symbol (handle, subject.Handle));
+		public Node GetSymbol (Node subject) => Node.Get (Natives.lilv_world_get_symbol (handle, subject.Handle));
 
 		public Nodes FindNodes (Node subject, Node predicate, Node obj) =>
 			new Nodes (Natives.lilv_world_find_nodes (handle, subject.Handle, predicate.Handle, obj.Handle));
 		
 		public Node Get (Node subject, Node predicate, Node obj) =>
-			new Node (Natives.lilv_world_get (handle, subject.Handle, predicate.Handle, obj.Handle));
+			Node.Get (Natives.lilv_world_get (handle, subject.Handle, predicate.Handle, obj.Handle));
 		public bool Ask (Node subject, Node predicate, Node obj) => Natives.lilv_world_ask (handle, subject.Handle, predicate.Handle, obj.Handle);
 
 		public void SetOption (Node subject, string uri, Node value)
@@ -211,7 +211,7 @@ namespace LilvSharp
 		
 		public PluginClass GetPluginByUri (Node node)
 		{
-			return new PluginClass (Natives.lilv_plugin_classes_get_by_uri (Handle, node.Handle));
+			return PluginClass.Get (Natives.lilv_plugin_classes_get_by_uri (Handle, node.Handle));
 		}
 		
 		class Iterator : LilvIterator<PluginClass>
@@ -220,7 +220,7 @@ namespace LilvSharp
 				: base (collection,
 					Natives.lilv_plugin_classes_begin,
 					Natives.lilv_plugin_classes_next,
-					(c,i) => new PluginClass (Natives.lilv_plugin_classes_get (c, i)),
+					(c,i) => PluginClass.Get (Natives.lilv_plugin_classes_get (c, i)),
 					Natives.lilv_plugin_classes_is_end)
 			{
 			}
@@ -229,9 +229,12 @@ namespace LilvSharp
 	
 	public class PluginClass
 	{
+		internal static PluginClass Get (IntPtr handle) =>
+			handle == IntPtr.Zero ? null : new PluginClass (handle);
+		
 		IntPtr handle;
 		
-		public PluginClass (IntPtr handle)
+		PluginClass (IntPtr handle)
 		{
 			this.handle = handle;
 		}
@@ -240,11 +243,11 @@ namespace LilvSharp
 		
 		public IEnumerable<PluginClass> Children => new PluginClasses (Natives.lilv_plugin_class_get_children (handle));
 		
-		public Node ParentUri => new Node (Natives.lilv_plugin_class_get_parent_uri (handle));
+		public Node ParentUri => Node.Get (Natives.lilv_plugin_class_get_parent_uri (handle));
 		
-		public Node Uri => new Node (Natives.lilv_plugin_class_get_uri (handle));
+		public Node Uri => Node.Get (Natives.lilv_plugin_class_get_uri (handle));
 		
-		public Node Label => new Node (Natives.lilv_plugin_class_get_label (handle));
+		public Node Label => Node.Get (Natives.lilv_plugin_class_get_label (handle));
 	}
 	
 	public enum LiteralType
@@ -260,7 +263,7 @@ namespace LilvSharp
 	
 	public class Nodes : LilvEnumerable<Node>
 	{
-		public Nodes (IntPtr handle)
+		internal Nodes (IntPtr handle)
 			: base (handle,
 				Natives.lilv_nodes_free,
 				Natives.lilv_nodes_size,
@@ -274,7 +277,7 @@ namespace LilvSharp
 				: base (collection,
 					Natives.lilv_nodes_begin,
 					Natives.lilv_nodes_next,
-					(c,i) => new Node (Natives.lilv_nodes_get (c, i)),
+					(c,i) => Node.Get (Natives.lilv_nodes_get (c, i)),
 					Natives.lilv_nodes_is_end)
 			{
 			}
@@ -283,9 +286,11 @@ namespace LilvSharp
 
 	public class Node
 	{
+		internal static Node Get (IntPtr handle) => handle == IntPtr.Zero ? null : new Node (handle);
+		
 		IntPtr handle;
 		
-		public Node (IntPtr handle)
+		Node (IntPtr handle)
 		{
 			this.handle = handle;
 		}
@@ -344,7 +349,7 @@ namespace LilvSharp
 				: base (collection,
 					Natives.lilv_plugins_begin,
 					Natives.lilv_plugins_next,
-					(c,i) => new Plugin (Natives.lilv_plugins_get (c, i), allocator),
+					(c,i) => Plugin.Get (Natives.lilv_plugins_get (c, i), allocator),
 					Natives.lilv_plugins_is_end)
 			{
 			}
@@ -353,10 +358,12 @@ namespace LilvSharp
 
 	public class Plugin
 	{
+		internal static Plugin Get (IntPtr handle, StringAllocator allocator) => handle == IntPtr.Zero ? null : new Plugin (handle, allocator);
+		
 		StringAllocator allocator;
 		IntPtr handle;
 		
-		internal Plugin (IntPtr handle, StringAllocator allocator)
+		Plugin (IntPtr handle, StringAllocator allocator)
 		{
 			this.handle = handle;
 			this.allocator = allocator;
@@ -366,17 +373,17 @@ namespace LilvSharp
 		
 		public IntPtr Handle => handle;
 		
-		public Node Uri => new Node (Natives.lilv_plugin_get_uri (handle));
-		public Node BundleUri => new Node (Natives.lilv_plugin_get_bundle_uri (handle));
+		public Node Uri => Node.Get (Natives.lilv_plugin_get_uri (handle));
+		public Node BundleUri => Node.Get (Natives.lilv_plugin_get_bundle_uri (handle));
 		public Nodes DataUris => new Nodes (Natives.lilv_plugin_get_data_uris (handle));
-		public Node LibraryUri => new Node (Natives.lilv_plugin_get_library_uri (handle));
-		public Node Name => new Node (Natives.lilv_plugin_get_name (handle));
-		public PluginClass Class => new PluginClass (Natives.lilv_plugin_get_class (handle));
-		public Node Value => new Node (Natives.lilv_plugin_get_name (handle));
+		public Node LibraryUri => Node.Get (Natives.lilv_plugin_get_library_uri (handle));
+		public Node Name => Node.Get (Natives.lilv_plugin_get_name (handle));
+		public PluginClass Class => PluginClass.Get (Natives.lilv_plugin_get_class (handle));
+		public Node Value => Node.Get (Natives.lilv_plugin_get_name (handle));
 		public Nodes SupportedFeatures => new Nodes (Natives.lilv_plugin_get_supported_features (handle));
 		public Nodes RequiredFeatures => new Nodes (Natives.lilv_plugin_get_required_features (handle));
 		public Nodes OptionalFeatures => new Nodes (Natives.lilv_plugin_get_optional_features (handle));
-		public Node ExtensionData => new Node (Natives.lilv_plugin_get_extension_data (handle));
+		public Node ExtensionData => Node.Get (Natives.lilv_plugin_get_extension_data (handle));
 
 		public bool HasFeature (Node featureUri) => Natives.lilv_plugin_has_feature (handle, featureUri.Handle);
 		public bool HasExtensionData (Node uri) => Natives.lilv_plugin_has_extension_data (handle, uri.Handle);
@@ -404,10 +411,10 @@ namespace LilvSharp
 		public Port GetPortBySymbol (Node symbol) => new Port (handle, Natives.lilv_plugin_get_port_by_symbol (handle, symbol.Handle));
 		public Port GetPortByDesignation (Node portClass, Node designation) => new Port (handle, Natives.lilv_plugin_get_port_by_designation (handle, portClass.Handle, designation.Handle));
 		
-		public Node Project => new Node (Natives.lilv_plugin_get_project (handle));
-		public Node AuthorName => new Node (Natives.lilv_plugin_get_author_name (handle));
-		public Node AuthorEmail => new Node (Natives.lilv_plugin_get_author_email (handle));
-		public Node AuthorHomepage => new Node (Natives.lilv_plugin_get_author_homepage (handle));
+		public Node Project => Node.Get (Natives.lilv_plugin_get_project (handle));
+		public Node AuthorName => Node.Get (Natives.lilv_plugin_get_author_name (handle));
+		public Node AuthorEmail => Node.Get (Natives.lilv_plugin_get_author_email (handle));
+		public Node AuthorHomepage => Node.Get (Natives.lilv_plugin_get_author_homepage (handle));
 		public bool IsReplaced => Natives.lilv_plugin_is_replaced (handle);
 		
 		public void WriteDescription (Plugin plugin, Node baseUri, IntPtr file) => Natives.lilv_plugin_write_description (handle, plugin.Handle, baseUri.Handle, file);
@@ -433,6 +440,11 @@ namespace LilvSharp
 		
 		internal Port (IntPtr plugin, IntPtr port)
 		{
+			if (plugin == IntPtr.Zero)
+				throw new ArgumentNullException (nameof (plugin));
+			if (port == IntPtr.Zero)
+				throw new ArgumentNullException (nameof (port));
+			
 			this.plugin = plugin;
 			this.port = port;
 		}
@@ -440,11 +452,11 @@ namespace LilvSharp
 		public IntPtr PluginHandle => plugin;
 		public IntPtr PortHandle => port;
 		
-		public Node Node => new Node (Natives.lilv_port_get_node (plugin, port));
+		public Node Node => Node.Get (Natives.lilv_port_get_node (plugin, port));
 
 		public Nodes GetValue (Node predicate) => new Nodes (Natives.lilv_port_get_value (plugin, port, predicate.Handle));
 
-		public Node Get (Node predicate) => new Node (Natives.lilv_port_get (plugin, port, predicate.Handle));
+		public Node Get (Node predicate) => Node.Get (Natives.lilv_port_get (plugin, port, predicate.Handle));
 		
 		public Nodes Properties => new Nodes (Natives.lilv_port_get_properties (plugin, port));
 		
@@ -453,8 +465,8 @@ namespace LilvSharp
 		public bool SupportsEvent (Node eventType) => Natives.lilv_port_supports_event (plugin, port, eventType.Handle);
 
 		public uint Index => Natives.lilv_port_get_index (plugin, port);
-		public Node Symbol => new Node (Natives.lilv_port_get_symbol (plugin, port));
-		public Node Name => new Node (Natives.lilv_port_get_name (plugin, port));
+		public Node Symbol => Node.Get (Natives.lilv_port_get_symbol (plugin, port));
+		public Node Name => Node.Get (Natives.lilv_port_get_name (plugin, port));
 		public Nodes Classes => new Nodes (Natives.lilv_port_get_classes (plugin, port));
 
 		public bool Is (Node portClass) => Natives.lilv_port_is_a (plugin, port, portClass.Handle);
@@ -466,9 +478,9 @@ namespace LilvSharp
 				IntPtr* minp = &min, maxp = &max, defp = &def;
 				Natives.lilv_port_get_range (plugin, port, (IntPtr) defp, (IntPtr) minp, (IntPtr) maxp);
 			}
-			deflt = new Node (def);
-			minimum = new Node (min);
-			maximum = new Node (max);
+			deflt = Node.Get (def);
+			minimum = Node.Get (min);
+			maximum = Node.Get (max);
 		}
 		
 		public ScalePoints ScalePoints => new ScalePoints (Natives.lilv_port_get_scale_points (plugin, port));
@@ -508,9 +520,9 @@ namespace LilvSharp
 		
 		public IntPtr Handle => handle;
 		
-		public Node Label => new Node (Natives.lilv_scale_point_get_label (handle));
+		public Node Label => Node.Get (Natives.lilv_scale_point_get_label (handle));
 
-		public Node Value => new Node (Natives.lilv_scale_point_get_value (handle));
+		public Node Value => Node.Get (Natives.lilv_scale_point_get_value (handle));
 	}
 
 	public class UIs : LilvEnumerable<UI>
@@ -542,10 +554,10 @@ namespace LilvSharp
 			this.handle = handle;
 		}
 		
-		public Node Uri => new Node (Natives.lilv_ui_get_uri (handle));
+		public Node Uri => Node.Get (Natives.lilv_ui_get_uri (handle));
 		public Nodes Classes => new Nodes (Natives.lilv_ui_get_classes (handle));
-		public Node BundleUri => new Node (Natives.lilv_ui_get_bundle_uri (handle));
-		public Node BinaryUri => new Node (Natives.lilv_ui_get_binary_uri (handle));
+		public Node BundleUri => Node.Get (Natives.lilv_ui_get_bundle_uri (handle));
+		public Node BinaryUri => Node.Get (Natives.lilv_ui_get_binary_uri (handle));
 
 		public bool Is (Node classUri) => Natives.lilv_ui_is_a (handle, classUri.Handle);
 		
@@ -555,7 +567,7 @@ namespace LilvSharp
 			{
 				// It is not expected to crash within native call.
 				try {
-					return func (new Node (containerTypeUri), new Node (uiTypeUri));
+					return func (Node.Get (containerTypeUri), Node.Get (uiTypeUri));
 				}
 				catch {
 					return 0;
@@ -566,7 +578,7 @@ namespace LilvSharp
 			unsafe {
 				void* rptr = &ptr;
 				var ret = Natives.lilv_ui_is_supported (handle, Cb, containerType.Handle, (IntPtr) rptr);
-				uiType = new Node (ptr);
+				uiType = Node.Get (ptr);
 				return ret != 0;
 			}
 		}
@@ -631,12 +643,12 @@ namespace LilvSharp
 
 		public uint NumProperties => Natives.lilv_state_get_num_properties (handle);
 
-		public Node PluginUri => new Node (Natives.lilv_state_get_plugin_uri (handle));
+		public Node PluginUri => Node.Get (Natives.lilv_state_get_plugin_uri (handle));
 
-		public Node Uri => new Node (Natives.lilv_state_get_uri (handle));
+		public Node Uri => Node.Get (Natives.lilv_state_get_uri (handle));
 
 		public string Label {
-			get => Marshal.PtrToStringAnsi (Natives.lilv_state_get_label (handle));
+			get => Natives.lilv_state_get_label (handle).ToManagedString ();
 			set => Natives.lilv_state_set_label (handle, allocator.AddOrInterned (value));
 		}
 
@@ -657,9 +669,9 @@ namespace LilvSharp
 					filenamePtr))));
 
 		public string StateToString (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri,
-			string baseUri) => Marshal.PtrToStringAnsi (uri.Fixed (uriPtr => baseUri.Fixed (baseUriPtr =>
+			string baseUri) => uri.Fixed (uriPtr => baseUri.Fixed (baseUriPtr =>
 			Natives.lilv_state_to_string (world.Handle, map.Handle, unmap.Handle, handle,
-				uriPtr, baseUriPtr))));
+				uriPtr, baseUriPtr))).ToManagedString ();
 	}
 
 	public delegate void SetPortValueFunc (IntPtr portSymbol, IntPtr userData, IntPtr value, int size, uint type);
@@ -680,7 +692,7 @@ namespace LilvSharp
 		public void Dispose () => Natives.lilv_instance_free (handle);
 
 		// This is inline.
-		//public string Uri => Marshal.PtrToStringAnsi (Natives.lilv_instance_get_uri (handle));
+		//public string Uri => Natives.lilv_instance_get_uri (handle).ToManagedString ();
 
 		// This is inline.
 		//public void ConnectPort (uint portIndex, IntPtr dataLocation) => Natives.lilv_instance_connect_port (handle, portIndex, dataLocation);

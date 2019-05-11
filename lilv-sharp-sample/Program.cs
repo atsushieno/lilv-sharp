@@ -28,7 +28,7 @@ public class Driver
 			}
 			foreach (var ppi in plugin.GetType ().GetProperties ().Where (_ => _.PropertyType == typeof (Node))) {
 				var node = (Node) ppi.GetValue (plugin);
-				Console.WriteLine ($"  [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
+				Console.WriteLine ($"  [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
 			}
 			for (uint i = 0; i < plugin.NumPorts; i++) {
 				Console.WriteLine ($"    ---- Port {i} ----");
@@ -38,10 +38,10 @@ public class Driver
 				}
 				foreach (var ppi in port.GetType ().GetProperties ().Where (_ => _.PropertyType == typeof (Node))) {
 					var node = (Node) ppi.GetValue (port);
-					Console.WriteLine ($"    [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
+					Console.WriteLine ($"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
 				}
 				foreach (var prop in port.Properties)
-					Console.WriteLine ($"    [P] {prop.LiteralType}: {prop.Value}");
+					Console.WriteLine ($"    [P] {prop?.LiteralType}: {prop?.Value}");
 			}
 
 			foreach (var ui in plugin.UIs)
@@ -55,7 +55,7 @@ public class Driver
 		}
 		foreach (var ppi in instance.GetType ().GetProperties ().Where (_ => _.PropertyType == typeof (Node))) {
 			var node = (Node) ppi.GetValue (instance);
-			Console.WriteLine ($"    [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
+			Console.WriteLine ($"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
 		}
 	}
 }
