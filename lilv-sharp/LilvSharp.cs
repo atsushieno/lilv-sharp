@@ -1,4 +1,3 @@
-using LilvSharp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,6 +9,21 @@ namespace LilvSharp
 	static class PrivateExtensions
 	{
 		public static string ToManagedString (this IntPtr ptr) => ptr == IntPtr.Zero ? null : Marshal.PtrToStringAnsi (ptr);
+
+		// TODO: it may be fragile. The native code might expect that the pointee string alive after the call.
+		// For such case, there should be an additional Disposable manager argument so that the caller can manage memory by themselves.
+		public static void Fixed (this string s, Action<IntPtr> action)
+		{
+			s.Fixed<int> (p => { action (p); return 0; });
+		}
+
+		public static T Fixed<T> (this string s, Func<IntPtr,T> func)
+		{
+			var ptr = Marshal.StringToHGlobalAnsi (s);
+			T ret = func (ptr);
+			Marshal.FreeHGlobal (ptr);
+			return ret;
+		}
 	}
 
 	public class World : IDisposable
@@ -21,6 +35,8 @@ namespace LilvSharp
 			handle = Natives.lilv_world_new ();
 		}
 
+		public IntPtr Handle => handle;
+
 		public void Dispose ()
 		{
 			if (handle != IntPtr.Zero)
@@ -28,22 +44,48 @@ namespace LilvSharp
 			handle = IntPtr.Zero;
 		}
 
-		public void LoadAll ()
-		{
-			Natives.lilv_world_load_all (handle);
-		}
+		public void LoadAll () => Natives.lilv_world_load_all (handle);
 
-		public PluginClasses GetPluginClasses ()
-		{
-			return new PluginClasses (Natives.lilv_world_get_plugin_classes (handle));
-		}
+		public void LoadBundle (Node bundleUri) => Natives.lilv_world_load_bundle (handle, bundleUri.Handle);
+
+		public void LoadSpecifications () => Natives.lilv_world_load_specifications (handle);
+
+		public void LoadPluginClasses () => Natives.lilv_world_load_plugin_classes (handle);
+
+		public void UnloadBundle (Node bundleUri) => Natives.lilv_world_unload_bundle (handle, bundleUri.Handle);
+
+		public void LoadResource (Node resourceUri) => Natives.lilv_world_load_resource(handle, resourceUri.Handle);
+
+		public void UnloadResource (Node resourceUri) => Natives.lilv_world_unload_resource(handle, resourceUri.Handle);
+
+		public PluginClasses GetPluginClasses () => new PluginClasses (Natives.lilv_world_get_plugin_classes (handle));
 		
-		public Plugins GetAllPlugins ()
-		{
-			return new Plugins (Natives.lilv_world_get_all_plugins (handle));
-		}
+		public Plugins GetAllPlugins () => new Plugins (Natives.lilv_world_get_all_plugins (handle));
 		
 		public Node GetSymbol (Node subject) => new Node (Natives.lilv_world_get_symbol (handle, subject.Handle));
+
+		public Nodes FindNodes (Node subject, Node predicate, Node obj) =>
+			new Nodes (Natives.lilv_world_find_nodes (handle, subject.Handle, predicate.Handle, obj.Handle));
+		
+		public Node Get (Node subject, Node predicate, Node obj) =>
+			new Node (Natives.lilv_world_get (handle, subject.Handle, predicate.Handle, obj.Handle));
+		public bool Ask (Node subject, Node predicate, Node obj) => Natives.lilv_world_ask (handle, subject.Handle, predicate.Handle, obj.Handle);
+
+		public void SetOption (Node subject, string uri, Node value)
+		{
+			uri.Fixed (ptr => Natives.lilv_world_set_option (handle, ptr, value.Handle));
+		}
+
+		public State FromWorld (LV2Sharp.URIDMap map, Node subject) =>
+			new State (Natives.lilv_state_new_from_world (handle, map.Handle, subject.Handle));
+		
+		public State FromFile (LV2Sharp.URIDMap map, Node subject, string path) =>
+			new State (path.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)));
+		
+		public State FromString (LV2Sharp.URIDMap map, Node subject, string str) =>
+			new State (str.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)));
+
+		public void DeleteState (State state) => Natives.lilv_state_delete (handle, state.Handle);
 	}
 	
 	public class LilvEnumerable<T> : IEnumerable<T>, IDisposable
@@ -335,9 +377,7 @@ namespace LilvSharp
 		
 		public void WriteManifestEntry (Plugin plugin, Node baseUri, IntPtr manifestFile, string pluginFilePath)
 		{
-			var ptr = Marshal.StringToHGlobalAnsi (pluginFilePath);
-			Natives.lilv_plugin_write_manifest_entry (handle, plugin.Handle, baseUri.Handle, manifestFile, ptr);
-			Marshal.FreeHGlobal (ptr);
+			pluginFilePath.Fixed (ptr => Natives.lilv_plugin_write_manifest_entry (handle, plugin.Handle, baseUri.Handle, manifestFile, ptr));
 		}
 		
 		public Nodes GetRelated (Node type) => new Nodes (Natives.lilv_plugin_get_related (handle, type.Handle));
@@ -493,5 +533,145 @@ namespace LilvSharp
 	}
 
 	public delegate uint UISupportedFunc (Node containerTypeUri, Node uiTypeUri);
+
+	public delegate IntPtr GetPortValueFunc (IntPtr portSymbol, IntPtr userData, IntPtr size, IntPtr type);
+
+	public class State
+	{
+		Delegates.LilvGetPortValueFunc func;
+		
+		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map, string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue, IntPtr userData, uint flags, LV2Sharp.Feature features) =>
+			new State (fileDir.Fixed (fileDirPtr => copyDir.Fixed (copyDirPtr => linkDir.Fixed (linkDirPtr => saveDir.Fixed<IntPtr> (saveDirPtr => Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle))))));
+		
+		readonly IntPtr handle;
+		
+		public State (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+
+		public void Dispose ()
+		{
+			Natives.lilv_state_free (handle);
+		}
+
+		public static bool operator == (State s1, State s2)
+		{
+			if (s1 is null)
+				return s2 is null;
+			return s1.Equals (s2);
+		}
+
+		public static bool operator != (State s1, State s2)
+		{
+			if (s1 is null)
+				return ! (s2 is null);
+			return !s1.Equals (s2);
+		}
+
+		public static bool Equals (State s1, State s2)
+		{
+			return s1 == s2;
+		}
+
+		public bool Equals (State s2)
+		{
+			return !(s2 is null) && Natives.lilv_state_equals (handle, s2.handle);
+		}
+
+		public override bool Equals (object o2)
+		{
+			return Equals (o2 as State);
+		}
+
+		public override int GetHashCode () => (int) handle;
+
+		public int NumProperties => (int) Natives.lilv_state_get_num_properties (handle);
+
+		public Node PluginUri => new Node (Natives.lilv_state_get_plugin_uri (handle));
+
+		public Node Uri => new Node (Natives.lilv_state_get_uri (handle));
+
+		public string Label {
+			get => Marshal.PtrToStringAnsi (Natives.lilv_state_get_label (handle));
+			set => value.Fixed (ptr => Natives.lilv_state_set_label (handle, ptr));
+		}
+
+		public int SetMetadata (uint key, IntPtr value, int size, uint type, uint flags) =>
+			Natives.lilv_state_set_metadata (handle, key, value, new IntPtr (size), type, flags);
+
+		public void EmitPortValues (SetPortValueFunc setter, IntPtr userData) =>
+			Natives.lilv_state_emit_port_values (handle, (p1, p2, p3, p4, p5) => setter (p1, p2, p3, (int) p4, p5), userData);
+
+		public void Restore (Instance instance, SetPortValueFunc setter, IntPtr userData, uint flags, LV2Sharp.Feature feature) =>
+			Natives.lilv_state_restore (handle, instance.Handle,
+				(p1, p2, p3, p4, p5) => setter (p1, p2, p3, (int) p4, p5), userData, flags, feature.Handle);
+
+		public void Save (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri, string dir,
+			string filename) =>
+			uri.Fixed (uriPtr => dir.Fixed (dirPtr => filename.Fixed (filenamePtr =>
+				Natives.lilv_state_save (world.Handle, map.Handle, unmap.Handle, handle, uriPtr, dirPtr,
+					filenamePtr))));
+
+		public string StateToString (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri,
+			string baseUri) => Marshal.PtrToStringAnsi (uri.Fixed (uriPtr => baseUri.Fixed (baseUriPtr =>
+			Natives.lilv_state_to_string (world.Handle, map.Handle, unmap.Handle, handle,
+				uriPtr, baseUriPtr))));
+	}
+
+	public delegate void SetPortValueFunc (IntPtr portSymbol, IntPtr userData, IntPtr value, int size, uint type);
+
+	public class Instance
+	{
+		IntPtr handle;
+		
+		public Instance (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
 }
 
+namespace LV2Sharp
+{
+	public class URIDMap
+	{
+		IntPtr handle;
+		
+		public URIDMap (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
+	
+	public class URIDUnmap
+	{
+		IntPtr handle;
+		
+		public URIDUnmap (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
+
+	
+	public class Feature
+	{
+		IntPtr handle;
+		
+		public Feature (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+
+		public IntPtr Handle => handle;
+	}
+}
