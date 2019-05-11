@@ -40,7 +40,12 @@ public class Driver
 					var node = (Node) ppi.GetValue (port);
 					Console.WriteLine ($"    [N] {ppi.Name}: ({node.LiteralType}) {node.Value}");
 				}
+				foreach (var prop in port.Properties)
+					Console.WriteLine ($"    [P] {prop.LiteralType}: {prop.Value}");
 			}
+
+			foreach (var ui in plugin.UIs)
+				Console.WriteLine ($"    ---- UI {ui.Uri.AsUri}");
 		}
 	}
 }

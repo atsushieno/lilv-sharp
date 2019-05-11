@@ -341,6 +341,9 @@ namespace LilvSharp
 		}
 		
 		public Nodes GetRelated (Node type) => new Nodes (Natives.lilv_plugin_get_related (handle, type.Handle));
+
+
+		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
 	}
 	
 	public class Port
@@ -429,6 +432,66 @@ namespace LilvSharp
 
 		public Node Value => new Node (Natives.lilv_scale_point_get_value (handle));
 	}
-}
 
+	public class UIs : LilvEnumerable<UI>
+	{
+		public UIs (IntPtr handle)
+			: base (handle, Natives.lilv_uis_free, h => (int) Natives.lilv_uis_size (h), h => new Iterator (h))
+		{
+		}
+		
+		class Iterator : LilvIterator<UI>
+		{
+			public Iterator (IntPtr collection)
+				: base (collection,
+					Natives.lilv_uis_begin,
+					Natives.lilv_uis_next,
+					(c,i) => new UI (Natives.lilv_uis_get(c, i)),
+					Natives.lilv_uis_is_end)
+			{
+			}
+		}
+	}
+
+	public class UI
+	{
+		IntPtr handle;
+		
+		public UI (IntPtr handle)
+		{
+			this.handle = handle;
+		}
+		
+		public Node Uri => new Node (Natives.lilv_ui_get_uri (handle));
+		public Nodes Classes => new Nodes (Natives.lilv_ui_get_classes (handle));
+		public Node BundleUri => new Node (Natives.lilv_ui_get_bundle_uri (handle));
+		public Node BinaryUri => new Node (Natives.lilv_ui_get_binary_uri (handle));
+
+		public bool Is (Node classUri) => Natives.lilv_ui_is_a (handle, classUri.Handle);
+		
+		public int IsSupported (UISupportedFunc func, Node containerType, out Node uiType)
+		{
+			uint Cb (IntPtr containerTypeUri, IntPtr uiTypeUri)
+			{
+				// It is not expected to crash within native call.
+				try {
+					return func (new Node (containerTypeUri), new Node (uiTypeUri));
+				}
+				catch {
+					return 0;
+				}
+			}
+
+			IntPtr ptr = IntPtr.Zero;
+			unsafe {
+				void* rptr = &ptr;
+				var ret = Natives.lilv_ui_is_supported (handle, Cb, containerType.Handle, (IntPtr) rptr);
+				uiType = new Node (ptr);
+				return (int) ret;
+			}
+		}
+	}
+
+	public delegate uint UISupportedFunc (Node containerTypeUri, Node uiTypeUri);
+}
 
