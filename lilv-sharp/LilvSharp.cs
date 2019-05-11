@@ -11,8 +11,8 @@ namespace LilvSharp
 	{
 		public static string ToManagedString (this IntPtr ptr) => ptr == IntPtr.Zero ? null : Marshal.PtrToStringAnsi (ptr);
 
-		// TODO: it may be fragile. The native code might expect that the pointee string alive after the call.
-		// For such case, there should be an additional Disposable manager argument so that the caller can manage memory by themselves.
+		// Use this carefully. The native code might expect that the pointee string alive after the call.
+		// For such case, use StringAllocator.AddOrInterned().
 		public static void Fixed (this string s, Action<IntPtr> action)
 		{
 			s.Fixed<int> (p => { action (p); return 0; });
@@ -27,8 +27,36 @@ namespace LilvSharp
 		}
 	}
 
+	class StringAllocator : IDisposable
+	{
+		Dictionary<string,IntPtr> handles = new Dictionary<string,IntPtr> ();
+
+		public IntPtr AddOrInterned (string s)
+		{
+			IntPtr ptr;
+			if (handles.TryGetValue (s, out ptr))
+				return ptr;
+			ptr = Marshal.StringToHGlobalAnsi (s);
+			handles [s] = ptr;
+			return ptr;
+		}
+
+		public void RemoveInterned (string s)
+		{
+			handles.Remove (s);
+		}
+
+		public void Dispose ()
+		{
+			foreach (var ptr in handles.Values)
+				Marshal.FreeHGlobal (ptr);
+			handles.Clear ();
+		}
+	}
+
 	public class World : IDisposable
 	{
+		StringAllocator allocator;
 		IntPtr handle;
 
 		public World ()
@@ -42,6 +70,8 @@ namespace LilvSharp
 		{
 			if (handle != IntPtr.Zero)
 				Natives.lilv_world_free (handle);
+			allocator.Dispose ();
+			allocator = null;
 			handle = IntPtr.Zero;
 		}
 
@@ -61,7 +91,7 @@ namespace LilvSharp
 
 		public PluginClasses GetPluginClasses () => new PluginClasses (Natives.lilv_world_get_plugin_classes (handle));
 		
-		public Plugins GetAllPlugins () => new Plugins (Natives.lilv_world_get_all_plugins (handle));
+		public Plugins GetAllPlugins () => new Plugins (Natives.lilv_world_get_all_plugins (handle), allocator);
 		
 		public Node GetSymbol (Node subject) => new Node (Natives.lilv_world_get_symbol (handle, subject.Handle));
 
@@ -74,17 +104,17 @@ namespace LilvSharp
 
 		public void SetOption (Node subject, string uri, Node value)
 		{
-			uri.Fixed (ptr => Natives.lilv_world_set_option (handle, ptr, value.Handle));
+			Natives.lilv_world_set_option (handle, allocator.AddOrInterned (uri), value.Handle);
 		}
 
 		public State FromWorld (LV2Sharp.URIDMap map, Node subject) =>
-			new State (Natives.lilv_state_new_from_world (handle, map.Handle, subject.Handle));
+			new State (Natives.lilv_state_new_from_world (handle, map.Handle, subject.Handle), allocator);
 		
 		public State FromFile (LV2Sharp.URIDMap map, Node subject, string path) =>
-			new State (path.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)));
+			new State (path.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)), allocator);
 		
 		public State FromString (LV2Sharp.URIDMap map, Node subject, string str) =>
-			new State (str.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)));
+			new State (str.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)), allocator);
 
 		public void DeleteState (State state) => Natives.lilv_state_delete (handle, state.Handle);
 	}
@@ -298,21 +328,23 @@ namespace LilvSharp
 
 	public class Plugins : LilvEnumerable<Plugin>
 	{
-		public Plugins (IntPtr handle)
+		StringAllocator allocator;
+		internal Plugins (IntPtr handle, StringAllocator allocator)
 			: base (handle,
 				h => {},
 				Natives.lilv_plugins_size,
-				h => new Iterator (h))
+				h => new Iterator (h, allocator))
 		{
+			this.allocator = allocator;
 		}
 		
 		class Iterator : LilvIterator<Plugin>
 		{
-			public Iterator (IntPtr collection)
+			public Iterator (IntPtr collection, StringAllocator allocator)
 				: base (collection,
 					Natives.lilv_plugins_begin,
 					Natives.lilv_plugins_next,
-					(c,i) => new Plugin (Natives.lilv_plugins_get (c, i)),
+					(c,i) => new Plugin (Natives.lilv_plugins_get (c, i), allocator),
 					Natives.lilv_plugins_is_end)
 			{
 			}
@@ -321,12 +353,16 @@ namespace LilvSharp
 
 	public class Plugin
 	{
+		StringAllocator allocator;
 		IntPtr handle;
 		
-		public Plugin (IntPtr handle)
+		internal Plugin (IntPtr handle, StringAllocator allocator)
 		{
 			this.handle = handle;
+			this.allocator = allocator;
 		}
+
+		internal StringAllocator Allocator => allocator;
 		
 		public IntPtr Handle => handle;
 		
@@ -387,7 +423,7 @@ namespace LilvSharp
 		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
 
 		public Instance Instantiate (double sampleRate, LV2Sharp.Feature features) =>
-			new Instance (Natives.lilv_plugin_instantiate (handle, sampleRate, features.Handle));
+			new Instance (Natives.lilv_plugin_instantiate (handle, sampleRate, features.Handle), allocator);
 	}
 	
 	public class Port
@@ -395,7 +431,7 @@ namespace LilvSharp
 		IntPtr plugin;
 		IntPtr port;
 		
-		public Port (IntPtr plugin, IntPtr port)
+		internal Port (IntPtr plugin, IntPtr port)
 		{
 			this.plugin = plugin;
 			this.port = port;
@@ -501,7 +537,7 @@ namespace LilvSharp
 	{
 		IntPtr handle;
 		
-		public UI (IntPtr handle)
+		internal UI (IntPtr handle)
 		{
 			this.handle = handle;
 		}
@@ -542,16 +578,17 @@ namespace LilvSharp
 
 	public class State
 	{
-		Delegates.LilvGetPortValueFunc func;
+		StringAllocator allocator;
 		
 		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map, string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue, IntPtr userData, uint flags, LV2Sharp.Feature features) =>
-			new State (fileDir.Fixed (fileDirPtr => copyDir.Fixed (copyDirPtr => linkDir.Fixed (linkDirPtr => saveDir.Fixed<IntPtr> (saveDirPtr => Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle))))));
+			new State (fileDir.Fixed (fileDirPtr => copyDir.Fixed (copyDirPtr => linkDir.Fixed (linkDirPtr => saveDir.Fixed<IntPtr> (saveDirPtr => Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle))))), plugin.Allocator);
 		
 		readonly IntPtr handle;
 		
-		public State (IntPtr handle)
+		internal State (IntPtr handle, StringAllocator allocator)
 		{
 			this.handle = handle;
+			this.allocator = allocator;
 		}
 
 		public IntPtr Handle => handle;
@@ -600,7 +637,7 @@ namespace LilvSharp
 
 		public string Label {
 			get => Marshal.PtrToStringAnsi (Natives.lilv_state_get_label (handle));
-			set => value.Fixed (ptr => Natives.lilv_state_set_label (handle, ptr));
+			set => Natives.lilv_state_set_label (handle, allocator.AddOrInterned (value));
 		}
 
 		public int SetMetadata (uint key, IntPtr value, int size, uint type, uint flags) =>
@@ -629,11 +666,13 @@ namespace LilvSharp
 
 	public class Instance
 	{
+		StringAllocator allocator;
 		IntPtr handle;
 		
-		public Instance (IntPtr handle)
+		internal Instance (IntPtr handle, StringAllocator allocator)
 		{
 			this.handle = handle;
+			this.allocator = allocator;
 		}
 
 		public IntPtr Handle => handle;
