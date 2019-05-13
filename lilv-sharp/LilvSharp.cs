@@ -453,8 +453,8 @@ namespace LilvSharp
 			this.port = port;
 		}
 		
-		public IntPtr PluginHandle => plugin;
-		public IntPtr PortHandle => port;
+		internal IntPtr PluginHandle => plugin;
+		internal IntPtr PortHandle => port;
 		
 		public Node Node => Node.Get (Natives.lilv_port_get_node (plugin, port));
 
@@ -522,7 +522,7 @@ namespace LilvSharp
 			this.handle = handle;
 		}
 		
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 		
 		public Node Label => Node.Get (Natives.lilv_scale_point_get_label (handle));
 
@@ -607,7 +607,7 @@ namespace LilvSharp
 			this.allocator = allocator;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 
 		public void Dispose ()
 		{
@@ -691,7 +691,7 @@ namespace LilvSharp
 			this.allocator = allocator;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 
 		public void Dispose () => Natives.lilv_instance_free (handle);
 
@@ -727,36 +727,36 @@ namespace LV2Sharp
 	{
 		IntPtr handle;
 		
-		public LV2Handle (IntPtr handle)
+		internal LV2Handle (IntPtr handle)
 		{
 			this.handle = handle;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 	}
 
 	public class URIDMap
 	{
 		IntPtr handle;
 		
-		public URIDMap (IntPtr handle)
+		internal URIDMap (IntPtr handle)
 		{
 			this.handle = handle;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 	}
 	
 	public class URIDUnmap
 	{
 		IntPtr handle;
 		
-		public URIDUnmap (IntPtr handle)
+		internal URIDUnmap (IntPtr handle)
 		{
 			this.handle = handle;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 	}
 
 	
@@ -764,23 +764,24 @@ namespace LV2Sharp
 	{
 		IntPtr handle;
 		
+		// FIXME: make it nonpublic
 		public Feature (IntPtr handle)
 		{
 			this.handle = handle;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 	}
 
 	public class Descriptor
 	{
 		IntPtr handle;
 		
-		public Descriptor (IntPtr handle)
+		internal Descriptor (IntPtr handle)
 		{
 			this.handle = handle;
 		}
 
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 	}
 }
