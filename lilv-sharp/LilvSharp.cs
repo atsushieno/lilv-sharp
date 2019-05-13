@@ -89,9 +89,11 @@ namespace LilvSharp
 
 		public void UnloadResource (Node resourceUri) => Natives.lilv_world_unload_resource(handle, resourceUri.Handle);
 
-		public PluginClasses GetPluginClasses () => new PluginClasses (Natives.lilv_world_get_plugin_classes (handle));
+		public PluginClass PluginClass => PluginClass.Get (Natives.lilv_world_get_plugin_class (handle));
 		
-		public Plugins GetAllPlugins () => new Plugins (Natives.lilv_world_get_all_plugins (handle), allocator);
+		public PluginClasses PluginClasses => new PluginClasses (Natives.lilv_world_get_plugin_classes (handle));
+		
+		public Plugins AllPlugins => new Plugins (Natives.lilv_world_get_all_plugins (handle), allocator);
 		
 		public Node GetSymbol (Node subject) => Node.Get (Natives.lilv_world_get_symbol (handle, subject.Handle));
 
@@ -321,13 +323,13 @@ namespace LilvSharp
 			IsUri ? LiteralType.Uri :
 			LiteralType.None;
 		
-		public object Value => IsLiteral ?
-			(IsBlank ? (object) AsBlank :
+		public object Value => IsUri ? (object) AsUri : IsLiteral ?
+			(IsBlank ? AsBlank :
 			IsBool ? AsBool :
 			IsFloat ? AsFloat :
 			IsInt ? AsInt :
-			IsString ? AsString :
-			IsUri ? (object) AsUri : "(unknown literal value)") : "(non-literal value)";
+			IsString ? (object) AsString : "(unknown literal value)")
+			: "(non-literal value)";
 	}
 	
 
@@ -372,6 +374,8 @@ namespace LilvSharp
 		internal StringAllocator Allocator => allocator;
 		
 		public IntPtr Handle => handle;
+
+		public void Verify () => Natives.lilv_plugin_verify (handle);
 		
 		public Node Uri => Node.Get (Natives.lilv_plugin_get_uri (handle));
 		public Node BundleUri => Node.Get (Natives.lilv_plugin_get_bundle_uri (handle));
@@ -379,7 +383,7 @@ namespace LilvSharp
 		public Node LibraryUri => Node.Get (Natives.lilv_plugin_get_library_uri (handle));
 		public Node Name => Node.Get (Natives.lilv_plugin_get_name (handle));
 		public PluginClass Class => PluginClass.Get (Natives.lilv_plugin_get_class (handle));
-		public Node Value => Node.Get (Natives.lilv_plugin_get_name (handle));
+		public Node GetValue (Node predicate) => Node.Get (Natives.lilv_plugin_get_value (handle, predicate.Handle));
 		public Nodes SupportedFeatures => new Nodes (Natives.lilv_plugin_get_supported_features (handle));
 		public Nodes RequiredFeatures => new Nodes (Natives.lilv_plugin_get_required_features (handle));
 		public Nodes OptionalFeatures => new Nodes (Natives.lilv_plugin_get_optional_features (handle));
