@@ -241,7 +241,7 @@ namespace LilvSharp
 			this.handle = handle;
 		}
 		
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 		
 		public IEnumerable<PluginClass> Children => new PluginClasses (Natives.lilv_plugin_class_get_children (handle));
 		
@@ -373,7 +373,7 @@ namespace LilvSharp
 
 		internal StringAllocator Allocator => allocator;
 		
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
 
 		public void Verify () => Natives.lilv_plugin_verify (handle);
 		
