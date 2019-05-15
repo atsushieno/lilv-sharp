@@ -733,44 +733,49 @@ namespace LilvSharp
 
 		public void Dispose () => Natives.lilv_instance_free (handle);
 
-		internal LilvInstanceImpl Impl => Marshal.PtrToStructure<LilvInstanceImpl> (handle);
-		internal Lv2Descriptor Descriptor => Marshal.PtrToStructure<Lv2Descriptor> (Impl.Lv2Descriptor);
+		LilvInstanceImpl impl => Marshal.PtrToStructure<LilvInstanceImpl> (handle);
+		Lv2Descriptor descriptor => Marshal.PtrToStructure<Lv2Descriptor> (impl.Lv2Descriptor);
 
 		// This is inline.
 		//public string Uri => Natives.lilv_instance_get_uri (handle).ToManagedString ();
-		public string Uri => Marshal.PtrToStringAnsi (Descriptor.URI);
+		public string Uri => Marshal.PtrToStringAnsi (descriptor.URI);
 
 		// This is inline.
 		//public void ConnectPort (uint portIndex, IntPtr dataLocation) => Natives.lilv_instance_connect_port (handle, portIndex, dataLocation);
 		delegate void Lv2DescriptorConnectPort (IntPtr lv2Handle, uint portIndex, IntPtr dataLocation);
-		public void ConnectPort (uint portIndex, IntPtr dataLocation) => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorConnectPort> (Descriptor.ConnectPort) (Impl.Lv2Handle, portIndex, dataLocation);
+		Lv2DescriptorConnectPort connect_port => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorConnectPort> (descriptor.ConnectPort);
+		public void ConnectPort (uint portIndex, IntPtr dataLocation) => connect_port (impl.Lv2Handle, portIndex, dataLocation);
 
 		// This is inline.
 		//public void Activate () => Natives.lilv_instance_activate (handle);
 		delegate void Lv2DescriptorActivate (IntPtr lv2Handle);
-		public void Activate () => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorActivate> (Descriptor.Activate) (Impl.Lv2Handle);
+		Lv2DescriptorActivate activate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorActivate> (descriptor.Activate);
+		public void Activate () => activate (impl.Lv2Handle);
 
 		// This is inline.
 		//public void Run (uint sampleCount) => Natives.lilv_instance_run (handle, sampleCount);
 		delegate void Lv2DescriptorRun (IntPtr lv2Handle, uint sampleCount);
-		public void Run (uint sampleCount) => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorRun> (Descriptor.Run) (Impl.Lv2Handle, sampleCount);
+		Lv2DescriptorRun run => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorRun> (descriptor.Run);
+		public void Run (uint sampleCount) => run (impl.Lv2Handle, sampleCount);
 
 		// This is inline.
 		//public void Deactivate () => Natives.lilv_instance_deactivate (handle);
 		delegate void Lv2DescriptorDeactivate (IntPtr lv2Handle);
-		public void Deactivate () => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorDeactivate> (Descriptor.Deactivate) (Impl.Lv2Handle);
+		Lv2DescriptorDeactivate deactivate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorDeactivate> (descriptor.Deactivate);
+		public void Deactivate () => deactivate (impl.Lv2Handle);
 
 		// This is inline.
 		//public IntPtr GetExtensionData (string uri) => uri.Fixed (uriPtr => Natives.lilv_instance_get_extension_data (handle, uriPtr));
 		delegate IntPtr Lv2DescriptorExtensionData (IntPtr lv2Handle, IntPtr uri);
-		public void GetExtensionData (string uri) => Node.Get (uri.Fixed (uriPtr => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorExtensionData> (Descriptor.ExtensionData) (Impl.Lv2Handle, uriPtr)));
+		Lv2DescriptorExtensionData extension_data => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorExtensionData> (descriptor.ExtensionData);
+		public void GetExtensionData (string uri) => Node.Get (uri.Fixed (uriPtr => extension_data (impl.Lv2Handle, uriPtr)));
 
 		// This is inline.
 		//LV2Sharp.Descriptor Descriptor => new LV2Sharp.Descriptor (Natives.lilv_instance_get_descriptor (handle));
 
 		// This is inline.
 		//LV2Sharp.LV2Handle LV2Handle => new LV2Sharp.LV2Handle (Natives.lilv_instance_get_handle (handle));
-		public IntPtr LV2Handle => Impl.Lv2Handle;
+		public IntPtr LV2Handle => impl.Lv2Handle;
 	}
 }
 
