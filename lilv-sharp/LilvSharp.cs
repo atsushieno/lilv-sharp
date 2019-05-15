@@ -75,17 +75,17 @@ namespace LilvSharp
 			handle = IntPtr.Zero;
 		}
 		
-		public Node NewUri (string uri) => Node.Get (uri.Fixed (uriPtr => Natives.lilv_new_uri (handle, uriPtr)));
+		public Node NewUri (string uri) => Node.Get (uri.Fixed (uriPtr => Natives.lilv_new_uri (handle, uriPtr)), true);
 		
-		public Node NewFileUri (string host, string path) => Node.Get (host.Fixed (hostPtr => path.Fixed (pathPtr => Natives.lilv_new_file_uri (handle, hostPtr, pathPtr))));
+		public Node NewFileUri (string host, string path) => Node.Get (host.Fixed (hostPtr => path.Fixed (pathPtr => Natives.lilv_new_file_uri (handle, hostPtr, pathPtr))), true);
 		
-		public Node NewString (string s) => Node.Get (s.Fixed (ptr => Natives.lilv_new_string (handle, ptr)));
+		public Node NewString (string s) => Node.Get (s.Fixed (ptr => Natives.lilv_new_string (handle, ptr)), true);
 		
-		public Node NewInt (int val) => Node.Get (Natives.lilv_new_int (handle, val));
+		public Node NewInt (int val) => Node.Get (Natives.lilv_new_int (handle, val), true);
 		
-		public Node NewFloat (float val) => Node.Get (Natives.lilv_new_float (handle, val));
+		public Node NewFloat (float val) => Node.Get (Natives.lilv_new_float (handle, val), true);
 		
-		public Node NewBool (bool val) => Node.Get (Natives.lilv_new_bool (handle, val));
+		public Node NewBool (bool val) => Node.Get (Natives.lilv_new_bool (handle, val), true);
 
 		public void LoadAll () => Natives.lilv_world_load_all (handle);
 
@@ -131,6 +131,8 @@ namespace LilvSharp
 			new State (str.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)), allocator);
 
 		public void DeleteState (State state) => Natives.lilv_state_delete (handle, state.Handle);
+
+		public State StateFromString (IntPtr map, string str) => State.Get (str.Fixed (strPtr => Natives.lilv_state_new_from_string (handle, map, strPtr)), allocator);
 	}
 	
 	public class LilvEnumerable<T> : IEnumerable<T>, IDisposable
@@ -277,6 +279,8 @@ namespace LilvSharp
 	
 	public class Nodes : LilvEnumerable<Node>
 	{
+		public static Nodes Merge (Nodes nl1, Nodes nl2) => new Nodes (Natives.lilv_nodes_merge (nl1.Handle, nl2.Handle));
+		
 		internal Nodes (IntPtr handle)
 			: base (handle,
 				Natives.lilv_nodes_free,
@@ -284,6 +288,10 @@ namespace LilvSharp
 				h => new Iterator (h))
 		{
 		}
+
+		public Node First => Node.Get (Natives.lilv_nodes_get_first (Handle));
+
+		public bool Contains (Node value) => Natives.lilv_nodes_contains (Handle, value.Handle);
 		
 		class Iterator : LilvIterator<Node>
 		{
@@ -298,18 +306,32 @@ namespace LilvSharp
 		}
 	}
 
-	public class Node
+	public class Node : IDisposable
 	{
-		internal static Node Get (IntPtr handle) => handle == IntPtr.Zero ? null : new Node (handle);
+		public static string UriToPath (string uri) => Marshal.PtrToStringAnsi (uri.Fixed (ptr => Natives.lilv_uri_to_path (ptr)));
+		public static string FileUriParse (string uri, string hostName) => Marshal.PtrToStringAnsi (uri.Fixed (uriPtr => hostName.Fixed (hostNamePtr => Natives.lilv_file_uri_parse (uriPtr, hostNamePtr))));
 		
-		IntPtr handle;
+		internal static Node Get (IntPtr handle, bool shouldFree = false) => handle == IntPtr.Zero ? null : new Node (handle, shouldFree);
 		
-		Node (IntPtr handle)
+		readonly IntPtr handle;
+		bool should_free;
+		
+		Node (IntPtr handle, bool shouldFree = false)
 		{
 			this.handle = handle;
+			this.should_free = shouldFree;
 		}
 		
-		public IntPtr Handle => handle;
+		internal IntPtr Handle => handle;
+
+		public void Dispose ()
+		{
+			if (should_free)
+				Natives.lilv_node_free (handle);
+			should_free = false;
+		}
+
+		public Node Duplicate () => new Node (Natives.lilv_node_duplicate (handle), true);
 		
 		public bool IsBlank => Natives.lilv_node_is_blank (handle);
 		public bool IsBool => Natives.lilv_node_is_bool (handle);
@@ -325,6 +347,8 @@ namespace LilvSharp
 		public int AsInt => Natives.lilv_node_as_int (handle);
 		public string AsString => Natives.lilv_node_as_string (handle).ToManagedString ();
 		public string AsUri => Natives.lilv_node_as_uri (handle).ToManagedString ();
+
+		public string TurtleToken => Marshal.PtrToStringAnsi (Natives.lilv_node_get_turtle_token (handle));
 		
 		public LiteralType LiteralType =>
 			IsBlank ? LiteralType.Blank :
@@ -342,6 +366,40 @@ namespace LilvSharp
 			IsInt ? AsInt :
 			IsString ? (object) AsString : "(unknown literal value)")
 			: "(non-literal value)";
+
+		public static bool operator == (Node s1, Node s2)
+		{
+			if (s1 is null)
+				return s2 is null;
+			return s1.Equals (s2);
+		}
+
+		public static bool operator != (Node s1, Node s2)
+		{
+			if (s1 is null)
+				return ! (s2 is null);
+			return !s1.Equals (s2);
+		}
+
+		public static bool Equals (Node s1, Node s2)
+		{
+			return s1 == s2;
+		}
+
+		public bool Equals (Node s2)
+		{
+			return !(s2 is null) && Natives.lilv_node_equals (handle, s2.handle);
+		}
+
+		public override bool Equals (object o2)
+		{
+			return Equals (o2 as Node);
+		}
+
+		public override int GetHashCode () => (int) handle;
+
+		public string GetPath (string hostName) => hostName.Fixed (ptr =>
+			Marshal.PtrToStringAnsi (Natives.lilv_node_get_path (handle, ptr)));
 	}
 	
 
@@ -552,6 +610,8 @@ namespace LilvSharp
 			: base (handle, Natives.lilv_uis_free, Natives.lilv_uis_size, h => new Iterator (h))
 		{
 		}
+
+		public UI GetByUri (Node uri) => UI.Get (Natives.lilv_uis_get_by_uri (Handle, uri.Handle));
 		
 		class Iterator : LilvIterator<UI>
 		{
@@ -568,6 +628,8 @@ namespace LilvSharp
 
 	public class UI
 	{
+		internal static UI Get (IntPtr handle) => handle == IntPtr.Zero ? null : new UI (handle);
+		
 		IntPtr handle;
 		
 		internal UI (IntPtr handle)
@@ -611,6 +673,8 @@ namespace LilvSharp
 
 	public class State
 	{
+		internal static State Get (IntPtr handle, StringAllocator allocator) => handle == IntPtr.Zero ? null : new State (handle, allocator);
+		
 		StringAllocator allocator;
 		
 		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map, string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue, IntPtr userData, uint flags, LV2Sharp.Feature features) =>
