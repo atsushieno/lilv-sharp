@@ -201,8 +201,12 @@ namespace LV2Sharp
 					Console.WriteLine ($"    ---- UI {ui.Uri.AsUri}");
 			}
 
-			var plugin1 = world.AllPlugins.Last ();
-			var instance = plugin1.Instantiate (44100, new LV2Sharp.Feature (IntPtr.Zero));
+			Console.WriteLine ("--------------------------------------");
+			var plugin1 = world.AllPlugins.Last (p => p.RequiredFeatures == null || p.RequiredFeatures.Count == 0);
+			var instance = plugin1.Instantiate (44100,
+				new LV2Sharp.Feature (IntPtr.Zero));
+			Console.WriteLine ("---- PLUGIN: " + plugin1.Name.Value);
+			
 			foreach (var ppi in instance.GetType ().GetProperties ()) {
 				if (ppi.PropertyType != typeof (Node) && ppi.PropertyType != typeof (Nodes))
 					Console.WriteLine ($"    {ppi}: {ppi.GetValue (instance)}");
@@ -221,6 +225,10 @@ namespace LV2Sharp
 				var node = (Node) ppi.GetValue (instance);
 				Console.WriteLine ($"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
 			}
+			
+			instance.ConnectPort (0, IntPtr.Zero);
+			instance.Activate ();
+			instance.Deactivate ();
 		}
 	}
 }

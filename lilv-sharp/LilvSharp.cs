@@ -74,6 +74,18 @@ namespace LilvSharp
 			allocator = null;
 			handle = IntPtr.Zero;
 		}
+		
+		public Node NewUri (string uri) => Node.Get (uri.Fixed (uriPtr => Natives.lilv_new_uri (handle, uriPtr)));
+		
+		public Node NewFileUri (string host, string path) => Node.Get (host.Fixed (hostPtr => path.Fixed (pathPtr => Natives.lilv_new_file_uri (handle, hostPtr, pathPtr))));
+		
+		public Node NewString (string s) => Node.Get (s.Fixed (ptr => Natives.lilv_new_string (handle, ptr)));
+		
+		public Node NewInt (int val) => Node.Get (Natives.lilv_new_int (handle, val));
+		
+		public Node NewFloat (float val) => Node.Get (Natives.lilv_new_float (handle, val));
+		
+		public Node NewBool (bool val) => Node.Get (Natives.lilv_new_bool (handle, val));
 
 		public void LoadAll () => Natives.lilv_world_load_all (handle);
 
@@ -211,7 +223,7 @@ namespace LilvSharp
 		{
 		}
 		
-		public PluginClass GetPluginByUri (Node node)
+		public PluginClass GetByUri (Node node)
 		{
 			return PluginClass.Get (Natives.lilv_plugin_classes_get_by_uri (Handle, node.Handle));
 		}
@@ -343,6 +355,11 @@ namespace LilvSharp
 				h => new Iterator (h, allocator))
 		{
 			this.allocator = allocator;
+		}
+		
+		public Plugin GetByUri (Node node)
+		{
+			return Plugin.Get (Natives.lilv_plugins_get_by_uri (Handle, node.Handle), allocator);
 		}
 		
 		class Iterator : LilvIterator<Plugin>
@@ -680,6 +697,27 @@ namespace LilvSharp
 
 	public delegate void SetPortValueFunc (IntPtr portSymbol, IntPtr userData, IntPtr value, int size, uint type);
 
+	[StructLayout (LayoutKind.Sequential)]
+	struct LilvInstanceImpl
+	{
+		public readonly IntPtr Lv2Descriptor;
+		public readonly IntPtr Lv2Handle;
+		public readonly IntPtr Impl;
+	}
+	
+	[StructLayout (LayoutKind.Sequential)]
+	struct Lv2Descriptor
+	{
+		public readonly IntPtr URI;
+		public readonly IntPtr Instantiate;
+		public readonly IntPtr ConnectPort;
+		public readonly IntPtr Activate;
+		public readonly IntPtr Run;
+		public readonly IntPtr Deactivate;
+		public readonly IntPtr Cleanup;
+		public readonly IntPtr ExtensionData;
+	}
+
 	public class Instance
 	{
 		StringAllocator allocator;
@@ -695,29 +733,44 @@ namespace LilvSharp
 
 		public void Dispose () => Natives.lilv_instance_free (handle);
 
+		internal LilvInstanceImpl Impl => Marshal.PtrToStructure<LilvInstanceImpl> (handle);
+		internal Lv2Descriptor Descriptor => Marshal.PtrToStructure<Lv2Descriptor> (Impl.Lv2Descriptor);
+
 		// This is inline.
 		//public string Uri => Natives.lilv_instance_get_uri (handle).ToManagedString ();
+		public string Uri => Marshal.PtrToStringAnsi (Descriptor.URI);
 
 		// This is inline.
 		//public void ConnectPort (uint portIndex, IntPtr dataLocation) => Natives.lilv_instance_connect_port (handle, portIndex, dataLocation);
+		delegate void Lv2DescriptorConnectPort (IntPtr lv2Handle, uint portIndex, IntPtr dataLocation);
+		public void ConnectPort (uint portIndex, IntPtr dataLocation) => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorConnectPort> (Descriptor.ConnectPort) (Impl.Lv2Handle, portIndex, dataLocation);
 
 		// This is inline.
 		//public void Activate () => Natives.lilv_instance_activate (handle);
+		delegate void Lv2DescriptorActivate (IntPtr lv2Handle);
+		public void Activate () => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorActivate> (Descriptor.Activate) (Impl.Lv2Handle);
 
 		// This is inline.
 		//public void Run (uint sampleCount) => Natives.lilv_instance_run (handle, sampleCount);
+		delegate void Lv2DescriptorRun (IntPtr lv2Handle, uint sampleCount);
+		public void Run (uint sampleCount) => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorRun> (Descriptor.Run) (Impl.Lv2Handle, sampleCount);
 
 		// This is inline.
 		//public void Deactivate () => Natives.lilv_instance_deactivate (handle);
+		delegate void Lv2DescriptorDeactivate (IntPtr lv2Handle);
+		public void Deactivate () => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorDeactivate> (Descriptor.Deactivate) (Impl.Lv2Handle);
 
 		// This is inline.
 		//public IntPtr GetExtensionData (string uri) => uri.Fixed (uriPtr => Natives.lilv_instance_get_extension_data (handle, uriPtr));
+		delegate IntPtr Lv2DescriptorExtensionData (IntPtr lv2Handle, IntPtr uri);
+		public void GetExtensionData (string uri) => Node.Get (uri.Fixed (uriPtr => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorExtensionData> (Descriptor.ExtensionData) (Impl.Lv2Handle, uriPtr)));
 
 		// This is inline.
 		//LV2Sharp.Descriptor Descriptor => new LV2Sharp.Descriptor (Natives.lilv_instance_get_descriptor (handle));
 
 		// This is inline.
 		//LV2Sharp.LV2Handle LV2Handle => new LV2Sharp.LV2Handle (Natives.lilv_instance_get_handle (handle));
+		public IntPtr LV2Handle => Impl.Lv2Handle;
 	}
 }
 
