@@ -1,13 +1,24 @@
 
-NCLANG=../../nclang
+ROOT=/sources
+LV2_PATH=$(ROOT)/LV2/dist/lib/lv2
+LD_LIBRARY_PATH=$(ROOT)/LV2/dist/lib:/usr/lib
+NCLANG=$(ROOT)/nclang
 
 LV2_HEADERS = `find  /usr/lib/lv2/ -name *.h`
 
 
 all: lib
+	csc -debug -out:lilv-sharp.dll StronglyTypedLV2.cs LilvSharp.cs lilv-interop.cs -t:library -unsafe
+
+lib: tool
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) \
+	LV2_PATH=$(LV2_PATH) \
+	/usr/bin/mono --debug lilv-sharp-sample.exe generate > StronglyTypedLV2.cs
+
+tool: lib-bootstrap
 	csc -debug -r:lilv-sharp.dll -out:lilv-sharp-sample.exe ../lilv-sharp-sample/Program.cs
 
-lib: generated-sources
+lib-bootstrap: generated-sources
 	csc -debug -out:lv2-sharp.dll lv2-interop.cs -t:library -unsafe
 	csc -debug -out:lilv-sharp.dll LilvSharp.cs lilv-interop.cs -t:library -unsafe
 

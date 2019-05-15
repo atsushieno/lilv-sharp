@@ -8,25 +8,29 @@ using System.Runtime.InteropServices;
 public class Driver
 {
 	static readonly IDictionary<string, string> known_namespaces = new Dictionary<string, string> () {
-		{ "http://www.w3.org/2000/01/rdf-schema", "RdfSchema" },
-		{ "http://www.w3.org/1999/02/22-rdf-syntax-ns", "RdfSyntax" },
-		{ "http://www.w3.org/2002/07/owl", "Owl" },
-		{ "http://xmlns.com/foaf/0.1/", "Foaf" },
-		{ "http://purl.org/dc/terms/", "Dct" },
-		{ "http://usefulinc.com/ns/doap", "Doap" },
-		{ "http://lv2plug.in/ns/lv2core", "LV2" },
-		{ "http://lv2plug.in/ns/ext/atom", "LV2.AtomNS" },
-		{ "http://lv2plug.in/ns/ext/event", "LV2.Event" },
-		{ "http://lv2plug.in/ns/ext/log", "LV2.Log" },
-		{ "http://lv2plug.in/ns/ext/midi", "LV2.Midi" },
-		{ "http://lv2plug.in/ns/ext/morph", "LV2.Morph" },
-		{ "http://lv2plug.in/ns/ext/options", "LV2.Options" },
-		{ "http://lv2plug.in/ns/ext/parameters", "LV2.Parameters" },
-		{ "http://lv2plug.in/ns/ext/patch", "LV2.Patch" },
-		{ "http://lv2plug.in/ns/ext/presets", "LV2.Presets" },
-		{ "http://lv2plug.in/ns/ext/port-groups", "LV2.PortGroups" },
-		{ "http://lv2plug.in/ns/ext/time", "LV2.Time" },
-		{ "http://lv2plug.in/ns/extensions/ui", "LV2.UI" }
+		{ "http://www.w3.org/2000/01/rdf-schema", "LV2Sharp.RdfSchema" },
+		{ "http://www.w3.org/1999/02/22-rdf-syntax-ns", "LV2Sharp.RdfSyntax" },
+		{ "http://www.w3.org/2002/07/owl", "LV2Sharp.Owl" },
+		{ "http://xmlns.com/foaf/0.1/", "LV2Sharp.Foaf" },
+		{ "http://purl.org/dc/terms/", "LV2Sharp.Dct" },
+		{ "http://usefulinc.com/ns/doap", "LV2Sharp.Doap" },
+		{ "http://ontologi.es/doap-bugs", "LV2Sharp.DoapBugs" },
+		{ "http://lv2plug.in/ns/lv2core", "LV2Sharp.LV2" },
+		{ "http://lv2plug.in/ns/ext/atom", "LV2Sharp.LV2.AtomNS" },
+		{ "http://lv2plug.in/ns/ext/dynmanifest", "LV2Sharp.LV2.DynManifest" },
+		{ "http://lv2plug.in/ns/ext/event", "LV2Sharp.LV2.EventNS" },
+		{ "http://lv2plug.in/ns/ext/log", "LV2Sharp.LV2.Log" },
+		{ "http://lv2plug.in/ns/ext/midi", "LV2Sharp.LV2.Midi" },
+		{ "http://lv2plug.in/ns/ext/morph", "LV2Sharp.LV2.Morph" },
+		{ "http://lv2plug.in/ns/ext/options", "LV2Sharp.LV2.Options" },
+		{ "http://lv2plug.in/ns/ext/parameters", "LV2Sharp.LV2.Parameters" },
+		{ "http://lv2plug.in/ns/ext/patch", "LV2Sharp.LV2.PatchNS" },
+		{ "http://lv2plug.in/ns/ext/presets", "LV2Sharp.LV2.Presets" },
+		{ "http://lv2plug.in/ns/ext/port-groups", "LV2Sharp.LV2.PortGroups" },
+		{ "http://lv2plug.in/ns/ext/state", "LV2Sharp.LV2.StateNS" },
+		{ "http://lv2plug.in/ns/ext/time", "LV2Sharp.LV2.TimeNS" },
+		{ "http://lv2plug.in/ns/extensions/ui", "LV2Sharp.LV2.UINS" },
+		{ "http://lv2plug.in/ns/extensions/units", "LV2Sharp.LV2.Units" },
 	};
 
 	public static void Main (string [] args)
@@ -56,9 +60,9 @@ public class Driver
 		
 		Console.WriteLine (@"
 using System;
-using LV2Typed;
+using LV2Sharp;
 
-namespace LV2Typed
+namespace LV2Sharp
 {
 	public class LabelAttribute : Attribute
 	{
@@ -78,7 +82,7 @@ namespace LV2Typed
 			string ns = known_namespaces
 					    .FirstOrDefault (e =>
 						    type.Uri.AsString.StartsWith (e.Key, StringComparison.Ordinal))
-					    .Value ?? "LV2Typed";
+					    .Value ?? "LV2Sharp";
 			
 			List<PluginClass> list;
 			if (!dic.TryGetValue (ns, out list)) {
@@ -89,7 +93,7 @@ namespace LV2Typed
 		}
 
 		string getNS (string uri) =>
-			known_namespaces.FirstOrDefault (e => uri.StartsWith (e.Key)).Value ?? "LV2Typed";
+			known_namespaces.FirstOrDefault (e => uri.StartsWith (e.Key)).Value ?? "LV2Sharp";
 
 		foreach (var e in dic) {
 
@@ -98,10 +102,20 @@ namespace LV2Typed
 
 			foreach (var type in e.Value) {
 				string name = type.Uri.AsString.Split ('/', '#').Last ();
-				string parentNS = getNS (type.ParentUri.AsString);
-				string parentName = type.Uri.AsString == "http://www.w3.org/2000/01/rdf-schema#Class"
-					? "System.Object"
-					: parentNS +'.' + type.ParentUri.AsString.Split ('/', '#').Last ();
+				string parentName = "System.Object";
+				if (type.ParentUri != null) {
+					string parentNS = getNS (type.ParentUri.AsString);
+					parentName =
+						type.Uri.AsString == "http://www.w3.org/2000/01/rdf-schema#Class"
+						|| type.Uri.AsString == type.ParentUri.AsString
+						|| !type.ParentUri.IsUri
+						? "System.Object"
+						: parentNS +'.' + type.ParentUri.AsString.Split ('/', '#').Last ();
+					// this is a special case. It is specified as inherited from owl:Thing but owl:Thing is NOT a rdfs:Class.
+					// Not sure if it is a specification bug in OWL.
+					if (parentName == "LV2Sharp.Owl.Thing")
+						parentName = "System.Object";
+				}
 				Console.WriteLine ($@"
 	[Label ({q}{type.Label.Value}{q})]
 	[PluginUri ({q}{type.Uri.Value}{q})]
@@ -127,7 +141,7 @@ namespace LV2Typed
 				foreach (var ppi in p.GetType ().GetProperties ()
 					.Where (_ => _.PropertyType == typeof (Node))) {
 					var node = (Node) ppi.GetValue (p);
-					Console.WriteLine ($"  {ppi.Name}: ({node.LiteralType}) {node.Value}");
+					Console.WriteLine ($"  {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
 				}
 			}
 
