@@ -944,18 +944,6 @@ namespace LilvSharp
 
 namespace LV2Sharp
 {
-	public class LV2Handle
-	{
-		IntPtr handle;
-		
-		internal LV2Handle (IntPtr handle)
-		{
-			this.handle = handle;
-		}
-
-		internal IntPtr Handle => handle;
-	}
-
 	public class URIDMap
 	{
 		IntPtr handle;
@@ -987,18 +975,6 @@ namespace LV2Sharp
 		
 		// FIXME: make it nonpublic
 		public Feature (IntPtr handle)
-		{
-			this.handle = handle;
-		}
-
-		internal IntPtr Handle => handle;
-	}
-
-	public class Descriptor
-	{
-		IntPtr handle;
-		
-		internal Descriptor (IntPtr handle)
 		{
 			this.handle = handle;
 		}
