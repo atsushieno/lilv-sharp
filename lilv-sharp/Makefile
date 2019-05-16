@@ -16,7 +16,7 @@ lib: tool
 	/usr/bin/mono --debug lilv-sharp-sample.exe generate > StronglyTypedLV2.cs
 
 tool: lib-bootstrap
-	csc -debug -r:lilv-sharp.dll -out:lilv-sharp-sample.exe ../lilv-sharp-sample/Program.cs
+	csc -unsafe -debug -r:lilv-sharp.dll -out:lilv-sharp-sample.exe ../lilv-sharp-sample/Program.cs
 
 lib-bootstrap: generated-sources
 	csc -debug -out:lv2-sharp.dll lv2-interop.cs -t:library -unsafe

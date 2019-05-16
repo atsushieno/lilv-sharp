@@ -7,6 +7,105 @@ using LilvSharp.NativeInterop;
 
 namespace LilvSharp
 {
+	public static class LV2Constants
+	{
+		public const string LV2CoreUri = "http://lv2plug.in/ns/lv2core";
+		const string LV2_CORE_PREFIX = LV2CoreUri + "#";
+
+		public const string
+			AllpassPlugin = LV2_CORE_PREFIX + "AllpassPlugin",
+			AmplifierPlugin = LV2_CORE_PREFIX + "AmplifierPlugin",
+			AnalyserPlugin = LV2_CORE_PREFIX + "AnalyserPlugin",
+			AudioPort = LV2_CORE_PREFIX + "AudioPort",
+			BandpassPlugin = LV2_CORE_PREFIX + "BandpassPlugin",
+			CVPort = LV2_CORE_PREFIX + "CVPort",
+			ChorusPlugin = LV2_CORE_PREFIX + "ChorusPlugin",
+			CombPlugin = LV2_CORE_PREFIX + "CombPlugin",
+			CompressorPlugin = LV2_CORE_PREFIX + "CompressorPlugin",
+			ConstantPlugin = LV2_CORE_PREFIX + "ConstantPlugin",
+			ControlPort = LV2_CORE_PREFIX + "ControlPort",
+			ConverterPlugin = LV2_CORE_PREFIX + "ConverterPlugin",
+			DelayPlugin = LV2_CORE_PREFIX + "DelayPlugin",
+			DistortionPlugin = LV2_CORE_PREFIX + "DistortionPlugin",
+			DynamicsPlugin = LV2_CORE_PREFIX + "DynamicsPlugin",
+			EQPlugin = LV2_CORE_PREFIX + "EQPlugin",
+			EnvelopePlugin = LV2_CORE_PREFIX + "EnvelopePlugin",
+			ExpanderPlugin = LV2_CORE_PREFIX + "ExpanderPlugin",
+			ExtensionData = LV2_CORE_PREFIX + "ExtensionData",
+			Feature = LV2_CORE_PREFIX + "Feature",
+			FilterPlugin = LV2_CORE_PREFIX + "FilterPlugin",
+			FlangerPlugin = LV2_CORE_PREFIX + "FlangerPlugin",
+			FunctionPlugin = LV2_CORE_PREFIX + "FunctionPlugin",
+			GatePlugin = LV2_CORE_PREFIX + "GatePlugin",
+			GeneratorPlugin = LV2_CORE_PREFIX + "GeneratorPlugin",
+			HighpassPlugin = LV2_CORE_PREFIX + "HighpassPlugin",
+			InputPort = LV2_CORE_PREFIX + "InputPort",
+			InstrumentPlugin = LV2_CORE_PREFIX + "InstrumentPlugin",
+			LimiterPlugin = LV2_CORE_PREFIX + "LimiterPlugin",
+			LowpassPlugin = LV2_CORE_PREFIX + "LowpassPlugin",
+			MixerPlugin = LV2_CORE_PREFIX + "MixerPlugin",
+			ModulatorPlugin = LV2_CORE_PREFIX + "ModulatorPlugin",
+			MultiEQPlugin = LV2_CORE_PREFIX + "MultiEQPlugin",
+			OscillatorPlugin = LV2_CORE_PREFIX + "OscillatorPlugin",
+			OutputPort = LV2_CORE_PREFIX + "OutputPort",
+			ParaEQPlugin = LV2_CORE_PREFIX + "ParaEQPlugin",
+			PhaserPlugin = LV2_CORE_PREFIX + "PhaserPlugin",
+			PitchPlugin = LV2_CORE_PREFIX + "PitchPlugin",
+			Plugin = LV2_CORE_PREFIX + "Plugin",
+			PluginBase = LV2_CORE_PREFIX + "PluginBase",
+			Point = LV2_CORE_PREFIX + "Point",
+			Port = LV2_CORE_PREFIX + "Port",
+			PortProperty = LV2_CORE_PREFIX + "PortProperty",
+			Resource = LV2_CORE_PREFIX + "Resource",
+			ReverbPlugin = LV2_CORE_PREFIX + "ReverbPlugin",
+			ScalePoint = LV2_CORE_PREFIX + "ScalePoint",
+			SimulatorPlugin = LV2_CORE_PREFIX + "SimulatorPlugin",
+			SpatialPlugin = LV2_CORE_PREFIX + "SpatialPlugin",
+			Specification = LV2_CORE_PREFIX + "Specification",
+			SpectralPlugin = LV2_CORE_PREFIX + "SpectralPlugin",
+			UtilityPlugin = LV2_CORE_PREFIX + "UtilityPlugin",
+			WaveshaperPlugin = LV2_CORE_PREFIX + "WaveshaperPlugin";
+	}
+
+	public static class Lv2Properties
+	{
+		const string LV2_CORE_PREFIX = LV2Constants.LV2CoreUri + "#";
+
+		public const string
+			AppliesTo = LV2_CORE_PREFIX + "appliesTo",
+			Binary = LV2_CORE_PREFIX + "binary",
+			ConnectionOptional = LV2_CORE_PREFIX + "connectionOptional",
+			Control = LV2_CORE_PREFIX + "control",
+			Default = LV2_CORE_PREFIX + "default",
+			Designation = LV2_CORE_PREFIX + "designation",
+			Documentation = LV2_CORE_PREFIX + "documentation",
+			Enumeration = LV2_CORE_PREFIX + "enumeration",
+			ExtensionData = LV2_CORE_PREFIX + "extensionData",
+			FreeWheeling = LV2_CORE_PREFIX + "freeWheeling",
+			HardRTCapable = LV2_CORE_PREFIX + "hardRTCapable",
+			InPlaceBroken = LV2_CORE_PREFIX + "inPlaceBroken",
+			Index = LV2_CORE_PREFIX + "index",
+			Integer = LV2_CORE_PREFIX + "integer",
+			IsLive = LV2_CORE_PREFIX + "isLive",
+			Latency = LV2_CORE_PREFIX + "latency",
+			Maximum = LV2_CORE_PREFIX + "maximum",
+			MicroVersion = LV2_CORE_PREFIX + "microVersion",
+			Minimum = LV2_CORE_PREFIX + "minimum",
+			MinorVersion = LV2_CORE_PREFIX + "minorVersion",
+			Name = LV2_CORE_PREFIX + "name",
+			OptionalFeature = LV2_CORE_PREFIX + "optionalFeature",
+			Port = LV2_CORE_PREFIX + "port",
+			PortProperty = LV2_CORE_PREFIX + "portProperty",
+			Project = LV2_CORE_PREFIX + "project",
+			Prototype = LV2_CORE_PREFIX + "prototype",
+			ReportsLatency = LV2_CORE_PREFIX + "reportsLatency",
+			RequiredFeature = LV2_CORE_PREFIX + "requiredFeature",
+			SampleRate = LV2_CORE_PREFIX + "sampleRate",
+			ScalePoint = LV2_CORE_PREFIX + "scalePoint",
+			Symbol = LV2_CORE_PREFIX + "symbol",
+			Toggled = LV2_CORE_PREFIX + "toggled";
+	}
+
 	static class PrivateExtensions
 	{
 		public static string ToManagedString (this IntPtr ptr) => ptr == IntPtr.Zero ? null : Marshal.PtrToStringAnsi (ptr);
@@ -488,7 +587,7 @@ namespace LilvSharp
 		public uint LatencyPortIndex => Natives.lilv_plugin_get_latency_port_index (handle);
 		public Port GetPortByIndex (uint index) => new Port (handle, Natives.lilv_plugin_get_port_by_index (handle, index));
 		public Port GetPortBySymbol (Node symbol) => new Port (handle, Natives.lilv_plugin_get_port_by_symbol (handle, symbol.Handle));
-		public Port GetPortByDesignation (Node portClass, Node designation) => new Port (handle, Natives.lilv_plugin_get_port_by_designation (handle, portClass.Handle, designation.Handle));
+		public Port GetPortByDesignation (Node portClass, Node designation) => new Port (handle, Natives.lilv_plugin_get_port_by_designation (handle, portClass == null ? IntPtr.Zero : portClass.Handle, designation.Handle));
 		
 		public Node Project => Node.Get (Natives.lilv_plugin_get_project (handle));
 		public Node AuthorName => Node.Get (Natives.lilv_plugin_get_author_name (handle));

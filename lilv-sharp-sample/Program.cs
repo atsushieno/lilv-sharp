@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 
+
+
 public class Driver
 {
 	static readonly IDictionary<string, string> known_namespaces = new Dictionary<string, string> () {
@@ -50,6 +52,8 @@ public class Driver
 			ShowList (args);
 		else if (args.Contains ("generate"))
 			Generate (args);
+		if (args.Contains ("play"))
+			Play (args);
 	}
 
 	static void Generate (string [] args)
@@ -128,7 +132,7 @@ namespace LV2Sharp
 			Console.WriteLine ("}");
 		}
 	}
-	
+
 	static void ShowList (string [] args)
 	{
 		var world = new World ();
@@ -151,84 +155,101 @@ namespace LV2Sharp
 		if (args.Length == 1 || args.Contains ("--show-plugins")) {
 			foreach (Plugin plugin in world.AllPlugins) {
 				Console.WriteLine ($"[ Plugin {plugin.Name.Value} : {plugin.Class.Uri.Value} ]");
-				foreach (var ppi in plugin.GetType ().GetProperties ()) {
-					if (ppi.PropertyType != typeof (Node) && ppi.PropertyType != typeof (Nodes))
-						Console.WriteLine ($"  {ppi}: {ppi.GetValue (plugin)}");
-				}
-
-				foreach (var ppi in plugin.GetType ().GetProperties ()
-					.Where (_ => _.PropertyType == typeof (Nodes))) {
-					var nodes = (Nodes) ppi.GetValue (plugin);
-					Console.WriteLine ($"    [NL] {ppi.Name}:");
-					foreach (var node in nodes)
-						Console.WriteLine ($"      ({node?.LiteralType}) {node?.Value}");
-				}
-
-				foreach (var ppi in plugin.GetType ().GetProperties ()
-					.Where (_ => _.PropertyType == typeof (Node))) {
-					var node = (Node) ppi.GetValue (plugin);
-					Console.WriteLine ($"  [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
-				}
+				Dump (plugin);
 
 				for (uint i = 0; i < plugin.NumPorts; i++) {
 					var port = plugin.GetPortByIndex (i);
 					Console.WriteLine ($"    ---- Port {i} ----");
-					foreach (var ppi in port.GetType ().GetProperties ()) {
-						if (ppi.PropertyType != typeof (Node) && ppi.PropertyType != typeof (Nodes))
-							Console.WriteLine ($"    {ppi}: {ppi.GetValue (port)}");
-					}
-
-					foreach (var ppi in port.GetType ().GetProperties ()
-						.Where (_ => _.PropertyType == typeof (Nodes))) {
-						var nodes = (Nodes) ppi.GetValue (port);
-						Console.WriteLine ($"    [NL] {ppi.Name}:");
-						foreach (var node in nodes)
-							Console.WriteLine ($"      ({node?.LiteralType}) {node?.Value}");
-					}
-
-					foreach (var ppi in port.GetType ().GetProperties ()
-						.Where (_ => _.PropertyType == typeof (Node))) {
-						var node = (Node) ppi.GetValue (port);
-						Console.WriteLine (
-							$"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
-					}
-
-					foreach (var prop in port.Properties)
-						Console.WriteLine ($"    [P] {prop?.LiteralType}: {prop?.Value}");
+					Dump (port);
 				}
 
-				foreach (var ui in plugin.UIs)
+				foreach (var ui in plugin.UIs) {
 					Console.WriteLine ($"    ---- UI {ui.Uri.AsUri}");
+					Dump (ui);
+				}
 			}
+		}
+	}
 
-			Console.WriteLine ("--------------------------------------");
-			var plugin1 = world.AllPlugins.Last (p => p.RequiredFeatures == null || p.RequiredFeatures.Count == 0);
-			var instance = plugin1.Instantiate (44100,
-				new LV2Sharp.Feature (IntPtr.Zero));
-			Console.WriteLine ("---- PLUGIN: " + plugin1.Name.Value);
+	static void Dump (object o)
+	{
+		foreach (var ppi in o.GetType ().GetProperties ()) {
+			if (ppi.PropertyType != typeof (Node) && ppi.PropertyType != typeof (Nodes))
+				Console.WriteLine ($"    {ppi}: {ppi.GetValue (o)}");
+		}
+
+		foreach (var ppi in o.GetType ().GetProperties ()
+			.Where (_ => _.PropertyType == typeof (Nodes))) {
+			var nodes = (Nodes) ppi.GetValue (o);
+			Console.WriteLine ($"    [NL] {ppi.Name}:");
+			foreach (var node in nodes)
+				Console.WriteLine ($"      ({node?.LiteralType}) {node?.Value}");
+		}
+
+		foreach (var ppi in o.GetType ().GetProperties ()
+			.Where (_ => _.PropertyType == typeof (Node))) {
+			var node = (Node) ppi.GetValue (o);
+			Console.WriteLine ($"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
+		}
+	}
+
+	static void Play (string [] args)
+	{
+		var world = new World ();
+		world.LoadAll ();
+
+		var plugin1 = args.Length > 1 ?
+			world.AllPlugins.GetByUri (world.NewUri (args [1])) :
+			world.AllPlugins.Last (p => p.RequiredFeatures == null || p.RequiredFeatures.Count == 0);
+		Console.WriteLine ("---- PLUGIN: " + plugin1.Name.Value);
+		var instance = plugin1.Instantiate (44100,
+			new LV2Sharp.Feature (IntPtr.Zero));
+		Dump (instance);
+
+		var in_arr = new float [1000];
+		var out_arr = new float [1000];
+		var ctrl_arr = new float [1000];
+		for (int i = 0; i < in_arr.Length; i++) {
+			in_arr [i] = (float) Math.Sin (i / 100.0);
+			ctrl_arr [i] = 0.5f;
+		}
+
+		var ports = new Dictionary<string, Port> ();
+		
+		for (uint i = 0; i < plugin1.NumPorts; i++) {
+			var port = plugin1.GetPortByIndex (i);
+			Dump (port);
+			ports [port.Symbol.AsString] = port;
+		}
+
+		unsafe {
+			GCHandle inHandle = GCHandle.Alloc (in_arr),
+				outHandle = GCHandle.Alloc (out_arr), 
+				ctrlHandle = GCHandle.Alloc (ctrl_arr);
+			var inPtr = Marshal.UnsafeAddrOfPinnedArrayElement (in_arr, 0);
+			var outPtr = Marshal.UnsafeAddrOfPinnedArrayElement (out_arr, 0);
+			var ctrlPtr = Marshal.UnsafeAddrOfPinnedArrayElement (ctrl_arr, 0);
 			
-			foreach (var ppi in instance.GetType ().GetProperties ()) {
-				if (ppi.PropertyType != typeof (Node) && ppi.PropertyType != typeof (Nodes))
-					Console.WriteLine ($"    {ppi}: {ppi.GetValue (instance)}");
-			}
+			Console.WriteLine ("-> ConnectPort");
+			foreach (var pe in ports)
+				instance.ConnectPort (pe.Value.Index,
+					pe.Key == "in" ? inPtr : pe.Key == "out" ? outPtr : ctrlPtr);
 
-			foreach (var ppi in instance.GetType ().GetProperties ()
-				.Where (_ => _.PropertyType == typeof (Nodes))) {
-				var nodes = (Nodes) ppi.GetValue (instance);
-				Console.WriteLine ($"    [NL] {ppi.Name}:");
-				foreach (var node in nodes)
-					Console.WriteLine ($"      ({node?.LiteralType}) {node?.Value}");
-			}
-
-			foreach (var ppi in instance.GetType ().GetProperties ()
-				.Where (_ => _.PropertyType == typeof (Node))) {
-				var node = (Node) ppi.GetValue (instance);
-				Console.WriteLine ($"    [N] {ppi.Name}: ({node?.LiteralType}) {node?.Value}");
-			}
-			
-			instance.ConnectPort (0, IntPtr.Zero);
+			Console.WriteLine ("-> Activate");
 			instance.Activate ();
+			Console.WriteLine ("-> Run");
+			instance.Run ((uint) in_arr.Length);
+			Console.WriteLine ("-> Deactivate");
 			instance.Deactivate ();
+			foreach (var f in out_arr) {
+				Console.Write (f);
+				Console.Write (' ');
+			}
+			Console.WriteLine ();
+			
+			inHandle.Free ();
+			outHandle.Free ();
+			ctrlHandle.Free ();
 		}
 	}
 }
