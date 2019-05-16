@@ -16,3 +16,20 @@ as well as synthesis example in memory (lilv-sharp-sample.exe).
 There is a handful of plugin classes lookup issues in lilv itself so that
 it will not list some of the plugin classes such as "Atom" or "UI".
 See lilv github issues for details.
+
+## hacking
+
+I don't use MSBuild. I can't, due to broken .NET (Core) releases on Linux
+which neither of MSBuild and dotnet team really cares.
+They don't fix those bunch of reported Linux packaging issues.
+
+Either way, there is `Makefile` which takes almost all care.
+
+`lilv-interop.cs` is an automatically generated code from [nclang](https://github.com/atsushieno/nclang) PInvokeGenerator. To regenerate it you need nclang.
+
+I have bound almost all functions in lilv.h (manually implemented for
+those inline functions too) in `LilvSharp.cs`.
+
+`StronglyTypedLV2.cs` is not in real use. It is a dogfooding outcome from
+`lilv-sharp-sample.exe generate` command.
+
