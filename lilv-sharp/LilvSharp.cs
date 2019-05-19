@@ -65,6 +65,15 @@ namespace LilvSharp
 			SpectralPlugin = LV2_CORE_PREFIX + "SpectralPlugin",
 			UtilityPlugin = LV2_CORE_PREFIX + "UtilityPlugin",
 			WaveshaperPlugin = LV2_CORE_PREFIX + "WaveshaperPlugin";
+
+		public static bool IsAudioPort (this Port port) => port.Classes.Any (n => n.AsUri == AudioPort);
+		public static bool IsInputPort (this Port port) => port.Classes.Any (n => n.AsUri == InputPort);
+		public static bool IsOutputPort (this Port port) => port.Classes.Any (n => n.AsUri == OutputPort);
+		public static bool IsControlPort (this Port port) => port.Classes.Any (n => n.AsUri == ControlPort);
+		public static bool IsAudioIn (this Port port) => port.IsAudioPort () && port.IsInputPort ();
+		public static bool IsAudioOut (this Port port) => port.IsAudioPort () && port.IsOutputPort ();
+		public static bool IsControlIn (this Port port) => port.IsControlPort () && port.IsOutputPort ();
+
 	}
 
 	public static class Lv2Properties
@@ -777,7 +786,11 @@ namespace LilvSharp
 		StringAllocator allocator;
 		
 		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map, string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue, IntPtr userData, uint flags, LV2Sharp.Feature features) =>
-			new State (fileDir.Fixed (fileDirPtr => copyDir.Fixed (copyDirPtr => linkDir.Fixed (linkDirPtr => saveDir.Fixed<IntPtr> (saveDirPtr => Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle))))), plugin.Allocator);
+			fileDir.Fixed (fileDirPtr =>
+				copyDir.Fixed (copyDirPtr => 
+					linkDir.Fixed (linkDirPtr => 
+						saveDir.Fixed (saveDirPtr => 
+							new State (Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle), plugin.Allocator)))));
 		
 		readonly IntPtr handle;
 		
@@ -913,7 +926,11 @@ namespace LilvSharp
 		//public void Activate () => Natives.lilv_instance_activate (handle);
 		delegate void Lv2DescriptorActivate (IntPtr lv2Handle);
 		Lv2DescriptorActivate activate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorActivate> (descriptor.Activate);
-		public void Activate () => activate (impl.Lv2Handle);
+		public void Activate ()
+		{
+			if (descriptor.Activate != IntPtr.Zero)
+				activate (impl.Lv2Handle);
+		}
 
 		// This is inline.
 		//public void Run (uint sampleCount) => Natives.lilv_instance_run (handle, sampleCount);
@@ -925,7 +942,12 @@ namespace LilvSharp
 		//public void Deactivate () => Natives.lilv_instance_deactivate (handle);
 		delegate void Lv2DescriptorDeactivate (IntPtr lv2Handle);
 		Lv2DescriptorDeactivate deactivate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorDeactivate> (descriptor.Deactivate);
-		public void Deactivate () => deactivate (impl.Lv2Handle);
+
+		public void Deactivate ()
+		{
+			if (descriptor.Deactivate != IntPtr.Zero)
+				deactivate (impl.Lv2Handle);
+		}
 
 		// This is inline.
 		//public IntPtr GetExtensionData (string uri) => uri.Fixed (uriPtr => Natives.lilv_instance_get_extension_data (handle, uriPtr));

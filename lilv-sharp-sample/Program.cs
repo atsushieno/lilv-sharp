@@ -198,58 +198,95 @@ namespace LV2Sharp
 		var world = new World ();
 		world.LoadAll ();
 
-		var plugin1 = args.Length > 1 ?
-			world.AllPlugins.GetByUri (world.NewUri (args [1])) :
-			world.AllPlugins.Last (p => p.RequiredFeatures == null || p.RequiredFeatures.Count == 0);
-		Console.WriteLine ("---- PLUGIN: " + plugin1.Name.Value);
-		var instance = plugin1.Instantiate (44100,
-			new LV2Sharp.Feature (IntPtr.Zero));
-		Dump (instance);
 
-		var in_arr = new float [1000];
-		var out_arr = new float [1000];
-		var ctrl_arr = new float [1000];
-		for (int i = 0; i < in_arr.Length; i++) {
-			in_arr [i] = (float) Math.Sin (i / 100.0);
-			ctrl_arr [i] = 0.5f;
+		var plugins = new List<Plugin> ();
+		var instances = new List<Instance> ();
+		var buffers = new Dictionary<Port, float []> ();
+
+		foreach (var arg in args.Skip (1)) {
+			var plugin = world.AllPlugins.GetByUri (world.NewUri (arg));
+			if (plugin != null)
+				plugins.Add (plugin);
+			else
+				Console.Error.WriteLine ($"Plugin {arg} not found.");
 		}
 
-		var ports = new Dictionary<string, Port> ();
-		
-		for (uint i = 0; i < plugin1.NumPorts; i++) {
-			var port = plugin1.GetPortByIndex (i);
-			Dump (port);
-			ports [port.Symbol.AsString] = port;
+		if (!plugins.Any ())
+			plugins.Add (world.AllPlugins.Last (p => p.RequiredFeatures == null || p.RequiredFeatures.Count == 0));
+
+		Func<float []> allocate = () => new float [1000];
+		List<GCHandle> gcHandles = new List<GCHandle> ();
+
+		var audioSource = allocate ();
+		float [] audioDestination = null;
+		var ctrlSource = allocate ();
+		var dummySource = allocate ();
+		for (int i = 0; i < audioSource.Length; i++) {
+			audioSource [i] = (float) Math.Sin (i / 100.0);
+			ctrlSource [i] = 0.5f;
 		}
 
 		unsafe {
-			GCHandle inHandle = GCHandle.Alloc (in_arr),
-				outHandle = GCHandle.Alloc (out_arr), 
-				ctrlHandle = GCHandle.Alloc (ctrl_arr);
-			var inPtr = Marshal.UnsafeAddrOfPinnedArrayElement (in_arr, 0);
-			var outPtr = Marshal.UnsafeAddrOfPinnedArrayElement (out_arr, 0);
-			var ctrlPtr = Marshal.UnsafeAddrOfPinnedArrayElement (ctrl_arr, 0);
-			
-			Console.WriteLine ("-> ConnectPort");
-			foreach (var pe in ports)
-				instance.ConnectPort (pe.Value.Index,
-					pe.Key == "in" ? inPtr : pe.Key == "out" ? outPtr : ctrlPtr);
+			gcHandles.Add (GCHandle.Alloc (audioSource));
+			gcHandles.Add (GCHandle.Alloc (ctrlSource));
+			var inPtr = Marshal.UnsafeAddrOfPinnedArrayElement (audioSource, 0);
+			var ctrlPtr = Marshal.UnsafeAddrOfPinnedArrayElement (ctrlSource, 0);
+			var dummyPtr = Marshal.UnsafeAddrOfPinnedArrayElement (dummySource, 0);
+
+			var ports = new Dictionary<string, Port> ();
+			IntPtr currentAudioIn = inPtr;
+		
+			foreach (var plugin in plugins) {
+				Console.Write ("---- Plugin: ");
+				Console.WriteLine (plugin.Name.Value);
+				var instance = plugin.Instantiate (44100, new LV2Sharp.Feature (IntPtr.Zero));
+				Dump (instance);
+				IntPtr currentAudioOut = IntPtr.Zero;
+				for (uint i = 0; i < plugin.NumPorts; i++) {
+					Console.WriteLine ($"  -- Port {i} --");
+					var port = plugin.GetPortByIndex (i);
+					Dump (port);
+					if (port.IsAudioIn ()) {
+						instance.ConnectPort (i, currentAudioIn);
+						
+					} else if (port.IsAudioOut ()) {
+						audioDestination = allocate ();
+						currentAudioOut = Marshal.UnsafeAddrOfPinnedArrayElement (audioDestination, 0); 
+						gcHandles.Add (GCHandle.Alloc (audioDestination));
+						instance.ConnectPort (i, currentAudioOut);
+						buffers [port] = audioDestination;
+					}
+					else if (port.IsControlIn ())
+						instance.ConnectPort (i, ctrlPtr);
+					else
+						instance.ConnectPort (i, dummyPtr);
+				}
+
+				currentAudioIn = currentAudioOut;
+
+				instances.Add (instance);
+			}
 
 			Console.WriteLine ("-> Activate");
-			instance.Activate ();
+			foreach (var instance in instances)
+				instance.Activate ();
+			
 			Console.WriteLine ("-> Run");
-			instance.Run ((uint) in_arr.Length);
+			foreach (var instance in instances)
+				instance.Run ((uint) audioSource.Length);
+				
 			Console.WriteLine ("-> Deactivate");
-			instance.Deactivate ();
-			foreach (var f in out_arr) {
+			foreach (var instance in instances)
+				instance.Deactivate ();
+			
+			foreach (var f in audioDestination) {
 				Console.Write (f);
 				Console.Write (' ');
 			}
 			Console.WriteLine ();
 			
-			inHandle.Free ();
-			outHandle.Free ();
-			ctrlHandle.Free ();
+			foreach (var gch in gcHandles)
+				gch.Free ();
 		}
 	}
 }
