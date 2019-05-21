@@ -4,7 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-
+using LV2Sharp;
 
 
 public class Driver
@@ -235,11 +235,22 @@ namespace LV2Sharp
 
 			var ports = new Dictionary<string, Port> ();
 			IntPtr currentAudioIn = inPtr;
-		
+
+			var features = new List<Feature> ();
+
+			features.Add (new Feature { URI = Lv2ExtUris.LV2OptionsUri, Data = LV2Options.Implementation });
+			features.Add (new Feature { URI = Lv2ExtUris.LV2UridUri, Data = URIDMap.Implementation });
+
+			bool aborted = false;
 			foreach (var plugin in plugins) {
 				Console.Write ("---- Plugin: ");
 				Console.WriteLine (plugin.Name.Value);
-				var instance = plugin.Instantiate (44100, new LV2Sharp.Feature (IntPtr.Zero));
+				var instance = plugin.Instantiate (44100, features.ToArray ());
+				if (instance == null) {
+					aborted = true;
+					break;
+				}
+
 				Dump (instance);
 				IntPtr currentAudioOut = IntPtr.Zero;
 				for (uint i = 0; i < plugin.NumPorts; i++) {
@@ -266,6 +277,9 @@ namespace LV2Sharp
 
 				instances.Add (instance);
 			}
+
+			if (aborted)
+				return;
 
 			Console.WriteLine ("-> Activate");
 			foreach (var instance in instances)

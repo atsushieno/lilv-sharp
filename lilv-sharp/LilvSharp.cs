@@ -4,10 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using LilvSharp.NativeInterop;
+using LV2Sharp;
 
 namespace LilvSharp
 {
-	public static class LV2Constants
+	public static class LV2CoreUris
 	{
 		public const string LV2CoreUri = "http://lv2plug.in/ns/lv2core";
 		const string LV2_CORE_PREFIX = LV2CoreUri + "#";
@@ -65,7 +66,7 @@ namespace LilvSharp
 			SpectralPlugin = LV2_CORE_PREFIX + "SpectralPlugin",
 			UtilityPlugin = LV2_CORE_PREFIX + "UtilityPlugin",
 			WaveshaperPlugin = LV2_CORE_PREFIX + "WaveshaperPlugin";
-
+		
 		public static bool IsAudioPort (this Port port) => port.Classes.Any (n => n.AsUri == AudioPort);
 		public static bool IsInputPort (this Port port) => port.Classes.Any (n => n.AsUri == InputPort);
 		public static bool IsOutputPort (this Port port) => port.Classes.Any (n => n.AsUri == OutputPort);
@@ -76,9 +77,33 @@ namespace LilvSharp
 
 	}
 
+	public static class Lv2ExtUris
+	{
+		public const string
+			LV2UridUri = "http://lv2plug.in/ns/ext/urid";
+		const string LV2_CORE_PREFIX = LV2UridUri + "#";
+
+		public const string
+			UridMap = LV2_CORE_PREFIX + "map",
+			UridUnmap = LV2_CORE_PREFIX + "unmap";
+
+		public const string
+			LV2OptionsUri = "http://lv2plug.in/ns/ext/options";
+
+		const string LV2_OPTIONS_PREFIX = LV2OptionsUri + "#";
+		public const string
+			OptionsOptionClass = LV2_OPTIONS_PREFIX + "Option",
+			OptionsInterface = LV2_OPTIONS_PREFIX + "interface";
+
+		public const string
+			OptionsOptionProperty = LV2_OPTIONS_PREFIX + "options",
+			OptionsRequiredOption = LV2_OPTIONS_PREFIX + "requiredOption",
+			OptionsSupportedOption = LV2_OPTIONS_PREFIX + "supportedOption";
+	}
+
 	public static class Lv2Properties
 	{
-		const string LV2_CORE_PREFIX = LV2Constants.LV2CoreUri + "#";
+		const string LV2_CORE_PREFIX = LV2CoreUris.LV2CoreUri + "#";
 
 		public const string
 			AppliesTo = LV2_CORE_PREFIX + "appliesTo",
@@ -430,7 +455,7 @@ namespace LilvSharp
 			this.should_free = shouldFree;
 		}
 		
-		internal IntPtr Handle => handle;
+		public IntPtr Handle => handle;
 
 		public void Dispose ()
 		{
@@ -616,8 +641,18 @@ namespace LilvSharp
 
 		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
 
-		public Instance Instantiate (double sampleRate, LV2Sharp.Feature features) =>
-			new Instance (Natives.lilv_plugin_instantiate (handle, sampleRate, features.Handle), allocator);
+		public Instance Instantiate (double sampleRate, Feature [] features)
+		{
+			var featuresHandle = GCHandle.Alloc (features);
+			try {
+				var featuresPtr = Marshal.UnsafeAddrOfPinnedArrayElement (features, 0);
+
+				return Instance.Get (Natives.lilv_plugin_instantiate (handle, sampleRate, featuresPtr),
+					allocator);
+			} finally {
+				featuresHandle.Free ();
+			}
+		}
 	}
 	
 	public class Port
@@ -784,13 +819,31 @@ namespace LilvSharp
 		internal static State Get (IntPtr handle, StringAllocator allocator) => handle == IntPtr.Zero ? null : new State (handle, allocator);
 		
 		StringAllocator allocator;
-		
-		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map, string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue, IntPtr userData, uint flags, LV2Sharp.Feature features) =>
-			fileDir.Fixed (fileDirPtr =>
-				copyDir.Fixed (copyDirPtr => 
-					linkDir.Fixed (linkDirPtr => 
-						saveDir.Fixed (saveDirPtr => 
-							new State (Natives.lilv_state_new_from_instance (plugin.Handle, instance.Handle, map.Handle, fileDirPtr, copyDirPtr, linkDirPtr, saveDirPtr, (p1,p2,p3,p4) => getValue (p1,p2,p3,p4), userData, flags, features.Handle), plugin.Allocator)))));
+
+		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map,
+			string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue,
+			IntPtr userData, uint flags, Feature [] features)
+		{
+			var gch = GCHandle.Alloc (features);
+			try {
+				var featuresPtr = Marshal.UnsafeAddrOfPinnedArrayElement (features, 0);
+				return fileDir.Fixed (fileDirPtr =>
+					copyDir.Fixed (copyDirPtr =>
+						linkDir.Fixed (linkDirPtr =>
+							saveDir.Fixed (saveDirPtr =>
+								new State (
+									Natives.lilv_state_new_from_instance (
+										plugin.Handle, instance.Handle,
+										map.Handle, fileDirPtr, copyDirPtr,
+										linkDirPtr, saveDirPtr,
+										(p1, p2, p3, p4) =>
+											getValue (p1, p2, p3, p4),
+										userData, flags,
+										featuresPtr), plugin.Allocator)))));
+			} finally {
+				gch.Free ();
+			}
+		}
 		
 		readonly IntPtr handle;
 		
@@ -855,9 +908,18 @@ namespace LilvSharp
 		public void EmitPortValues (SetPortValueFunc setter, IntPtr userData) =>
 			Natives.lilv_state_emit_port_values (handle, (p1, p2, p3, p4, p5) => setter (p1, p2, p3, (int) p4, p5), userData);
 
-		public void Restore (Instance instance, SetPortValueFunc setter, IntPtr userData, uint flags, LV2Sharp.Feature feature) =>
-			Natives.lilv_state_restore (handle, instance.Handle,
-				(p1, p2, p3, p4, p5) => setter (p1, p2, p3, (int) p4, p5), userData, flags, feature.Handle);
+		public void Restore (Instance instance, SetPortValueFunc setter, IntPtr userData, uint flags, Feature [] features)
+		{
+			var gch = GCHandle.Alloc (features);
+			try {
+				var featuresPtr = Marshal.UnsafeAddrOfPinnedArrayElement (features, 0);
+				Natives.lilv_state_restore (handle, instance.Handle,
+					(p1, p2, p3, p4, p5) => setter (p1, p2, p3, (int) p4, p5), userData, flags,
+					featuresPtr);
+			} finally {
+				gch.Free ();
+			}
+		}
 
 		public void Save (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri, string dir,
 			string filename) =>
@@ -881,36 +943,28 @@ namespace LilvSharp
 		public readonly IntPtr Impl;
 	}
 	
-	[StructLayout (LayoutKind.Sequential)]
-	struct Lv2Descriptor
-	{
-		public readonly IntPtr URI;
-		public readonly IntPtr Instantiate;
-		public readonly IntPtr ConnectPort;
-		public readonly IntPtr Activate;
-		public readonly IntPtr Run;
-		public readonly IntPtr Deactivate;
-		public readonly IntPtr Cleanup;
-		public readonly IntPtr ExtensionData;
-	}
-
 	public class Instance
 	{
-		StringAllocator allocator;
-		IntPtr handle;
+		internal static Instance Get (IntPtr handle, StringAllocator allocator) =>
+			handle == IntPtr.Zero ? null : new Instance (handle, allocator);
+		
+		readonly StringAllocator allocator;
+		readonly IntPtr handle;
 		
 		internal Instance (IntPtr handle, StringAllocator allocator)
 		{
 			this.handle = handle;
 			this.allocator = allocator;
+			impl = Marshal.PtrToStructure<LilvInstanceImpl> (handle);
+			descriptor = Marshal.PtrToStructure<LV2Sharp.LV2Descriptor> (impl.Lv2Descriptor);
 		}
 
 		internal IntPtr Handle => handle;
 
 		public void Dispose () => Natives.lilv_instance_free (handle);
 
-		LilvInstanceImpl impl => Marshal.PtrToStructure<LilvInstanceImpl> (handle);
-		Lv2Descriptor descriptor => Marshal.PtrToStructure<Lv2Descriptor> (impl.Lv2Descriptor);
+		readonly LilvInstanceImpl impl;
+		readonly LV2Sharp.LV2Descriptor descriptor;
 
 		// This is inline.
 		//public string Uri => Natives.lilv_instance_get_uri (handle).ToManagedString ();
@@ -918,14 +972,12 @@ namespace LilvSharp
 
 		// This is inline.
 		//public void ConnectPort (uint portIndex, IntPtr dataLocation) => Natives.lilv_instance_connect_port (handle, portIndex, dataLocation);
-		delegate void Lv2DescriptorConnectPort (IntPtr lv2Handle, uint portIndex, IntPtr dataLocation);
-		Lv2DescriptorConnectPort connect_port => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorConnectPort> (descriptor.ConnectPort);
+		LV2Sharp.Lv2DescriptorConnectPort connect_port => Marshal.GetDelegateForFunctionPointer<LV2Sharp.Lv2DescriptorConnectPort> (descriptor.ConnectPort);
 		public void ConnectPort (uint portIndex, IntPtr dataLocation) => connect_port (impl.Lv2Handle, portIndex, dataLocation);
 
 		// This is inline.
 		//public void Activate () => Natives.lilv_instance_activate (handle);
-		delegate void Lv2DescriptorActivate (IntPtr lv2Handle);
-		Lv2DescriptorActivate activate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorActivate> (descriptor.Activate);
+		LV2Sharp.Lv2DescriptorActivate activate => Marshal.GetDelegateForFunctionPointer<LV2Sharp.Lv2DescriptorActivate> (descriptor.Activate);
 		public void Activate ()
 		{
 			if (descriptor.Activate != IntPtr.Zero)
@@ -934,14 +986,12 @@ namespace LilvSharp
 
 		// This is inline.
 		//public void Run (uint sampleCount) => Natives.lilv_instance_run (handle, sampleCount);
-		delegate void Lv2DescriptorRun (IntPtr lv2Handle, uint sampleCount);
-		Lv2DescriptorRun run => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorRun> (descriptor.Run);
+		LV2Sharp.Lv2DescriptorRun run => Marshal.GetDelegateForFunctionPointer<LV2Sharp.Lv2DescriptorRun> (descriptor.Run);
 		public void Run (uint sampleCount) => run (impl.Lv2Handle, sampleCount);
 
 		// This is inline.
 		//public void Deactivate () => Natives.lilv_instance_deactivate (handle);
-		delegate void Lv2DescriptorDeactivate (IntPtr lv2Handle);
-		Lv2DescriptorDeactivate deactivate => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorDeactivate> (descriptor.Deactivate);
+		LV2Sharp.Lv2DescriptorDeactivate deactivate => Marshal.GetDelegateForFunctionPointer<LV2Sharp.Lv2DescriptorDeactivate> (descriptor.Deactivate);
 
 		public void Deactivate ()
 		{
@@ -951,8 +1001,7 @@ namespace LilvSharp
 
 		// This is inline.
 		//public IntPtr GetExtensionData (string uri) => uri.Fixed (uriPtr => Natives.lilv_instance_get_extension_data (handle, uriPtr));
-		delegate IntPtr Lv2DescriptorExtensionData (IntPtr lv2Handle, IntPtr uri);
-		Lv2DescriptorExtensionData extension_data => Marshal.GetDelegateForFunctionPointer<Lv2DescriptorExtensionData> (descriptor.ExtensionData);
+		LV2Sharp.Lv2DescriptorExtensionData extension_data => Marshal.GetDelegateForFunctionPointer<LV2Sharp.Lv2DescriptorExtensionData> (descriptor.ExtensionData);
 		public void GetExtensionData (string uri) => Node.Get (uri.Fixed (uriPtr => extension_data (impl.Lv2Handle, uriPtr)));
 
 		// This is inline.
@@ -964,11 +1013,97 @@ namespace LilvSharp
 	}
 }
 
+// These are manually bound structures for LV2 and lv2core extensions.
 namespace LV2Sharp
 {
+	delegate void Lv2DescriptorConnectPort (IntPtr lv2Handle, uint portIndex, IntPtr dataLocation);
+	delegate void Lv2DescriptorActivate (IntPtr lv2Handle);
+	delegate void Lv2DescriptorRun (IntPtr lv2Handle, uint sampleCount);
+	delegate void Lv2DescriptorDeactivate (IntPtr lv2Handle);
+	delegate IntPtr Lv2DescriptorExtensionData (IntPtr lv2Handle, IntPtr uri);
+	
+	[StructLayout (LayoutKind.Sequential)]
+	struct LV2Descriptor
+	{
+		public readonly IntPtr URI;
+		public readonly IntPtr Instantiate;
+		public readonly IntPtr ConnectPort;
+		public readonly IntPtr Activate;
+		public readonly IntPtr Run;
+		public readonly IntPtr Deactivate;
+		public readonly IntPtr Cleanup;
+		public readonly IntPtr ExtensionData;
+	}
+
+	[StructLayout (LayoutKind.Sequential)]
+	public class Feature
+	{
+		public string URI { get; set; }
+		public IntPtr Data { get; set; }
+	}
+
+	public class LV2Options
+	{
+		public static IntPtr Implementation;
+	}
+
+	struct LV2UIDescriptor
+	{
+		public readonly IntPtr URI;
+		public readonly IntPtr Instantiate;
+		public readonly IntPtr Cleanup;
+		public readonly IntPtr PortEvent;
+		public readonly IntPtr ExtensionData;
+	}
+
+	struct LV2UIResize
+	{
+		public readonly IntPtr Handle;
+		public readonly IntPtr UIResize;
+	}
+
+	struct LV2UIPortMap
+	{
+		public readonly IntPtr Handle;
+		public readonly IntPtr PortIndex;
+	}
+
+	struct LV2UIPortSubscribe
+	{
+		public readonly IntPtr Handle;
+		public readonly IntPtr PortSubscribe;
+		public readonly IntPtr PortUnsubscribe;
+	}
+
+	struct LV2UITouch
+	{
+		public readonly IntPtr Handle;
+		public readonly IntPtr Touch;
+	}	
+
+	struct LV2UIIdleInterface
+	{
+		public readonly IntPtr IdleInterface;
+	}
+
+	struct LV2UIShowInterface
+	{
+		public readonly IntPtr Show;
+		public readonly IntPtr Hide;
+	}
+
+	struct LV2UIPeakData
+	{
+		public readonly uint PeriodStart;
+		public readonly uint PeriodSize;
+		public readonly float Peak;
+	}
+	
 	public class URIDMap
 	{
-		IntPtr handle;
+		public static IntPtr Implementation; 
+		
+		public IntPtr handle;
 		
 		internal URIDMap (IntPtr handle)
 		{
@@ -983,20 +1118,6 @@ namespace LV2Sharp
 		IntPtr handle;
 		
 		internal URIDUnmap (IntPtr handle)
-		{
-			this.handle = handle;
-		}
-
-		internal IntPtr Handle => handle;
-	}
-
-	
-	public class Feature
-	{
-		IntPtr handle;
-		
-		// FIXME: make it nonpublic
-		public Feature (IntPtr handle)
 		{
 			this.handle = handle;
 		}
