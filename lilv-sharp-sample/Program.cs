@@ -227,8 +227,8 @@ namespace LV2Sharp
 		}
 
 		unsafe {
-			gcHandles.Add (GCHandle.Alloc (audioSource));
-			gcHandles.Add (GCHandle.Alloc (ctrlSource));
+			gcHandles.Add (GCHandle.Alloc (audioSource, GCHandleType.Pinned));
+			gcHandles.Add (GCHandle.Alloc (ctrlSource, GCHandleType.Pinned));
 			var inPtr = Marshal.UnsafeAddrOfPinnedArrayElement (audioSource, 0);
 			var ctrlPtr = Marshal.UnsafeAddrOfPinnedArrayElement (ctrlSource, 0);
 			var dummyPtr = Marshal.UnsafeAddrOfPinnedArrayElement (dummySource, 0);
@@ -238,14 +238,21 @@ namespace LV2Sharp
 
 			var features = new List<Feature> ();
 
-			features.Add (new Feature { URI = Lv2ExtUris.LV2OptionsUri, Data = LV2Options.Implementation });
-			features.Add (new Feature { URI = Lv2ExtUris.LV2UridUri, Data = URIDMap.Implementation });
+			var uridFeature = new URIDFeature ((_, uri) => {
+				return 0;
+			});
+			// FIXME: adjust values
+			var optionFeature = new OptionFeature (0, 0, 0, 0, 0, IntPtr.Zero);
+			
+			features.Add (new Feature { URI = Lv2ExtUris.FeatureUridMap, Data = uridFeature.Handle });
+			features.Add (new Feature { URI = Lv2ExtUris.FeatureOptions, Data = optionFeature.Handle });
 
 			bool aborted = false;
+			var featuresArray = features.ToArray ();
 			foreach (var plugin in plugins) {
 				Console.Write ("---- Plugin: ");
 				Console.WriteLine (plugin.Name.Value);
-				var instance = plugin.Instantiate (44100, features.ToArray ());
+				var instance = plugin.Instantiate (44100, featuresArray);
 				if (instance == null) {
 					aborted = true;
 					break;

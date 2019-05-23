@@ -8,7 +8,7 @@ LV2_HEADERS = `find  /usr/lib/lv2/ -name *.h`
 
 
 all: lib
-	csc -debug -out:lilv-sharp.dll StronglyTypedLV2.cs LilvSharp.cs lilv-interop.cs -t:library -unsafe
+	csc -debug -out:lilv-sharp.dll StronglyTypedLV2.cs LilvSharp.cs lilv-interop.cs lv2-interop.cs -t:library -unsafe
 
 lib: tool
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) \
@@ -19,8 +19,7 @@ tool: lib-bootstrap
 	csc -unsafe -debug -r:lilv-sharp.dll -out:lilv-sharp-sample.exe ../lilv-sharp-sample/Program.cs
 
 lib-bootstrap: generated-sources
-	csc -debug -out:lv2-sharp.dll lv2-interop.cs -t:library -unsafe
-	csc -debug -out:lilv-sharp.dll LilvSharp.cs lilv-interop.cs -t:library -unsafe
+	csc -debug -out:lilv-sharp.dll lv2-interop.cs LilvSharp.cs lilv-interop.cs -t:library -unsafe
 
 
 generated-sources:

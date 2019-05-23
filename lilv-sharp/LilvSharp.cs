@@ -3,8 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using LilvSharp.NativeInterop;
 using LV2Sharp;
+using Lv2Sharp.NativeInterop;
+using Natives = LilvSharp.NativeInterop.Natives;
 
 namespace LilvSharp
 {
@@ -79,26 +80,22 @@ namespace LilvSharp
 
 	public static class Lv2ExtUris
 	{
-		public const string
-			LV2UridUri = "http://lv2plug.in/ns/ext/urid";
+		public const string LV2UridUri = "http://lv2plug.in/ns/ext/urid";
 		const string LV2_CORE_PREFIX = LV2UridUri + "#";
-
 		public const string
-			UridMap = LV2_CORE_PREFIX + "map",
-			UridUnmap = LV2_CORE_PREFIX + "unmap";
+			FeatureUridMap = LV2_CORE_PREFIX + "map",
+			FeatureUridUnmap = LV2_CORE_PREFIX + "unmap";
 
-		public const string
-			LV2OptionsUri = "http://lv2plug.in/ns/ext/options";
-
+		public const string LV2OptionsUri = "http://lv2plug.in/ns/ext/options";
 		const string LV2_OPTIONS_PREFIX = LV2OptionsUri + "#";
 		public const string
-			OptionsOptionClass = LV2_OPTIONS_PREFIX + "Option",
-			OptionsInterface = LV2_OPTIONS_PREFIX + "interface";
+			ClassOptionsOption = LV2_OPTIONS_PREFIX + "Option";
 
 		public const string
-			OptionsOptionProperty = LV2_OPTIONS_PREFIX + "options",
-			OptionsRequiredOption = LV2_OPTIONS_PREFIX + "requiredOption",
-			OptionsSupportedOption = LV2_OPTIONS_PREFIX + "supportedOption";
+			FeatureInterface = LV2_OPTIONS_PREFIX + "interface",
+			FeatureOptions = LV2_OPTIONS_PREFIX + "options",
+			PropertyOptionsRequiredOption = LV2_OPTIONS_PREFIX + "requiredOption",
+			PropertyOptionsSupportedOption = LV2_OPTIONS_PREFIX + "supportedOption";
 	}
 
 	public static class Lv2Properties
@@ -254,13 +251,13 @@ namespace LilvSharp
 			Natives.lilv_world_set_option (handle, allocator.AddOrInterned (uri), value.Handle);
 		}
 
-		public State FromWorld (LV2Sharp.URIDMap map, Node subject) =>
+		public State FromWorld (LV2Sharp.URIDFeature map, Node subject) =>
 			new State (Natives.lilv_state_new_from_world (handle, map.Handle, subject.Handle), allocator);
 		
-		public State FromFile (LV2Sharp.URIDMap map, Node subject, string path) =>
+		public State FromFile (LV2Sharp.URIDFeature map, Node subject, string path) =>
 			new State (path.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)), allocator);
 		
-		public State FromString (LV2Sharp.URIDMap map, Node subject, string str) =>
+		public State FromString (LV2Sharp.URIDFeature map, Node subject, string str) =>
 			new State (str.Fixed (ptr => Natives.lilv_state_new_from_file (handle, map.Handle, subject.Handle, ptr)), allocator);
 
 		public void DeleteState (State state) => Natives.lilv_state_delete (handle, state.Handle);
@@ -643,14 +640,25 @@ namespace LilvSharp
 
 		public Instance Instantiate (double sampleRate, Feature [] features)
 		{
-			var featuresHandle = GCHandle.Alloc (features);
-			try {
-				var featuresPtr = Marshal.UnsafeAddrOfPinnedArrayElement (features, 0);
+			var gcHandles = new List<GCHandle> ();
+			var nativeFeatures = new List<LV2_Feature> ();
+			foreach (var f in features) {
+				gcHandles.Add (GCHandle.Alloc (f.URI));
+				var nf = new LV2_Feature { data = f.Data, URI = Marshal.StringToHGlobalAnsi (f.URI) };
+				nativeFeatures.Add (nf);
+			}
+			nativeFeatures.Add (new LV2_Feature ());// NULL terminator
 
+			var nfArray = nativeFeatures.ToArray ();
+			var featuresHandle = GCHandle.Alloc (nfArray, GCHandleType.Pinned);
+			try {
+				var featuresPtr = featuresHandle.AddrOfPinnedObject ();
 				return Instance.Get (Natives.lilv_plugin_instantiate (handle, sampleRate, featuresPtr),
 					allocator);
 			} finally {
 				featuresHandle.Free ();
+				foreach (var gch in gcHandles)
+					gch.Free ();
 			}
 		}
 	}
@@ -820,7 +828,7 @@ namespace LilvSharp
 		
 		StringAllocator allocator;
 
-		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDMap map,
+		public static State FromInstance (Plugin plugin, Instance instance, LV2Sharp.URIDFeature map,
 			string fileDir, string copyDir, string linkDir, string saveDir, GetPortValueFunc getValue,
 			IntPtr userData, uint flags, Feature [] features)
 		{
@@ -921,13 +929,13 @@ namespace LilvSharp
 			}
 		}
 
-		public void Save (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri, string dir,
+		public void Save (World world, LV2Sharp.URIDFeature map, LV2Sharp.URIDFeature unmap, string uri, string dir,
 			string filename) =>
 			uri.Fixed (uriPtr => dir.Fixed (dirPtr => filename.Fixed (filenamePtr =>
 				Natives.lilv_state_save (world.Handle, map.Handle, unmap.Handle, handle, uriPtr, dirPtr,
 					filenamePtr))));
 
-		public string StateToString (World world, LV2Sharp.URIDMap map, LV2Sharp.URIDUnmap unmap, string uri,
+		public string StateToString (World world, LV2Sharp.URIDFeature map, LV2Sharp.URIDFeature unmap, string uri,
 			string baseUri) => uri.Fixed (uriPtr => baseUri.Fixed (baseUriPtr =>
 			Natives.lilv_state_to_string (world.Handle, map.Handle, unmap.Handle, handle,
 				uriPtr, baseUriPtr))).ToManagedString ();
@@ -1042,11 +1050,6 @@ namespace LV2Sharp
 		public IntPtr Data { get; set; }
 	}
 
-	public class LV2Options
-	{
-		public static IntPtr Implementation;
-	}
-
 	struct LV2UIDescriptor
 	{
 		public readonly IntPtr URI;
@@ -1056,6 +1059,7 @@ namespace LV2Sharp
 		public readonly IntPtr ExtensionData;
 	}
 
+	/*
 	struct LV2UIResize
 	{
 		public readonly IntPtr Handle;
@@ -1098,30 +1102,59 @@ namespace LV2Sharp
 		public readonly uint PeriodSize;
 		public readonly float Peak;
 	}
-	
-	public class URIDMap
+	*/
+
+	public abstract class FeatureDisposable : IDisposable
 	{
-		public static IntPtr Implementation; 
-		
-		public IntPtr handle;
-		
-		internal URIDMap (IntPtr handle)
+		public void Dispose ()
 		{
-			this.handle = handle;
+			gch.Free ();
 		}
 
-		internal IntPtr Handle => handle;
+		protected void Pin (Array o)
+		{
+			gch = GCHandle.Alloc (o, GCHandleType.Pinned);
+			handle = Marshal.UnsafeAddrOfPinnedArrayElement (o, 0);
+		}
+
+		GCHandle gch;
+
+		IntPtr handle;
+		public IntPtr Handle => handle;
 	}
 	
-	public class URIDUnmap
+	// used for both map and unmap
+	public class URIDFeature : FeatureDisposable
 	{
-		IntPtr handle;
+		public delegate uint Map (IntPtr handle, string uri);
 		
-		internal URIDUnmap (IntPtr handle)
+		public URIDFeature (Map map)
 		{
-			this.handle = handle;
+			var a = new LV2_URID_Map [] {
+				new LV2_URID_Map {
+					handle = IntPtr.Zero,
+					map = (handle, uri) => map (handle, Marshal.PtrToStringAnsi (uri))
+				}
+			};
+			Pin (a);
 		}
+	}
 
-		internal IntPtr Handle => handle;
+	public class OptionFeature : FeatureDisposable
+	{
+		public OptionFeature (int/*LV2_Options_Context*/ context, uint subject, uint/*LV2_Atom_URID*/ key, uint size, uint/*LV2_Atom_URID*/ type, IntPtr value)
+		{
+			var a = new [] {
+				new LV2_Options_Option {
+					context = (LV2_Options_Context) context,
+					subject = subject,
+					key = key,
+					size = size,
+					type = type,
+					value = value
+				}
+			};
+			Pin (a);
+		}
 	}
 }
