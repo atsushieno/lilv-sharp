@@ -238,14 +238,16 @@ namespace LV2Sharp
 
 			var features = new List<Feature> ();
 
-			var uridFeature = new URIDFeature ((_, uri) => {
+			var uridMapFeature = new URIDFeature ((_, uri) => {
 				return 0;
 			});
 			// FIXME: adjust values
 			var optionFeature = new OptionFeature (0, 0, 0, 0, 0, IntPtr.Zero);
 			
-			features.Add (new Feature { URI = Lv2ExtUris.FeatureUridMap, Data = uridFeature.Handle });
-			features.Add (new Feature { URI = Lv2ExtUris.FeatureOptions, Data = optionFeature.Handle });
+			gcHandles.Add (GCHandle.Alloc (Lv2ExtUris.FeatureUridMap, GCHandleType.Pinned));
+			
+			features.Add (new Feature { URI = Lv2ExtUris.FeatureUridMap, Data = uridMapFeature });
+			features.Add (new Feature { URI = Lv2ExtUris.FeatureOptions, Data = optionFeature });
 
 			bool aborted = false;
 			var featuresArray = features.ToArray ();

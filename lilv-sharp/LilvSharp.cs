@@ -638,27 +638,46 @@ namespace LilvSharp
 
 		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
 
+		[StructLayout (LayoutKind.Sequential)]
+		class LV2_Feature_Marshal
+		{
+			public IntPtr URI;
+			public IntPtr Data;
+		}
+
 		public Instance Instantiate (double sampleRate, Feature [] features)
 		{
 			var gcHandles = new List<GCHandle> ();
-			var nativeFeatures = new List<LV2_Feature> ();
+			var nativeFeatures = new List<LV2_Feature_Marshal> ();
+			var hGlobals = new List<IntPtr> ();
 			foreach (var f in features) {
-				gcHandles.Add (GCHandle.Alloc (f.URI));
-				var nf = new LV2_Feature { data = f.Data, URI = Marshal.StringToHGlobalAnsi (f.URI) };
+				var uriPtr = Marshal.StringToHGlobalAnsi (f.URI);
+				hGlobals.Add (uriPtr);
+				Console.Error.WriteLine ($"  argument feature URI: {f?.URI} of type {f?.Data?.GetType ()} ({f?.Data?.Handle})");
+				var nf = new LV2_Feature_Marshal { Data = f.Data == null ? IntPtr.Zero : f.Data.Handle, URI = uriPtr };
 				nativeFeatures.Add (nf);
 			}
-			nativeFeatures.Add (new LV2_Feature ());// NULL terminator
+			nativeFeatures.Add (null); // NULL terminator
 
 			var nfArray = nativeFeatures.ToArray ();
-			var featuresHandle = GCHandle.Alloc (nfArray, GCHandleType.Pinned);
+			var nfHandle = GCHandle.Alloc (nfArray, GCHandleType.Pinned);
 			try {
-				var featuresPtr = featuresHandle.AddrOfPinnedObject ();
-				return Instance.Get (Natives.lilv_plugin_instantiate (handle, sampleRate, featuresPtr),
+				var nfPtr = nfHandle.AddrOfPinnedObject ();
+				for (IntPtr p = nfPtr; Marshal.ReadIntPtr (p) != IntPtr.Zero; p += Marshal.SizeOf<IntPtr> ()) {
+					Console.Error.WriteLine ("PTR: " + p);
+					var v = Marshal.PtrToStructure<LV2_Feature_Marshal> (Marshal.ReadIntPtr (p));
+					Console.Error.WriteLine ("    -- " + v.URI);
+					Console.Error.WriteLine ("    -- " + v.Data);
+				}
+				return Instance.Get (
+					Natives.lilv_plugin_instantiate (handle, sampleRate, nfPtr),
 					allocator);
 			} finally {
-				featuresHandle.Free ();
+				nfHandle.Free ();
 				foreach (var gch in gcHandles)
 					gch.Free ();
+				foreach (var hg in hGlobals)
+					Marshal.FreeHGlobal (hg);
 			}
 		}
 	}
@@ -1043,11 +1062,11 @@ namespace LV2Sharp
 		public readonly IntPtr ExtensionData;
 	}
 
-	[StructLayout (LayoutKind.Sequential)]
+	// managed object, no need to care about marshaling. We use LV2_Feature for that.
 	public class Feature
 	{
 		public string URI { get; set; }
-		public IntPtr Data { get; set; }
+		public Lv2FeatureData Data { get; set; }
 	}
 
 	struct LV2UIDescriptor
@@ -1104,9 +1123,9 @@ namespace LV2Sharp
 	}
 	*/
 
-	public abstract class FeatureDisposable : IDisposable
+	public abstract class Lv2FeatureData : IDisposable
 	{
-		public void Dispose ()
+		public virtual void Dispose ()
 		{
 			gch.Free ();
 		}
@@ -1116,6 +1135,12 @@ namespace LV2Sharp
 			gch = GCHandle.Alloc (o, GCHandleType.Pinned);
 			handle = Marshal.UnsafeAddrOfPinnedArrayElement (o, 0);
 		}
+		
+		protected void Pin (object o)
+		{
+			gch = GCHandle.Alloc (o, GCHandleType.Pinned);
+			handle = gch.AddrOfPinnedObject ();
+		}
 
 		GCHandle gch;
 
@@ -1124,23 +1149,44 @@ namespace LV2Sharp
 	}
 	
 	// used for both map and unmap
-	public class URIDFeature : FeatureDisposable
+	public class URIDFeature : Lv2FeatureData
 	{
 		public delegate uint Map (IntPtr handle, string uri);
+
+		GCHandle delegate_pin;
+		
+		[StructLayout (LayoutKind.Sequential)]
+		class URIDMapMarshal
+		{
+			public IntPtr Handle;
+			public Delegates.delegate9 Map;
+		}
 		
 		public URIDFeature (Map map)
 		{
+			Delegates.delegate9 _map = (handle, uri) => map (handle, Marshal.PtrToStringAnsi (uri));
+			delegate_pin = GCHandle.Alloc (_map);
+			
+			/*
 			var a = new LV2_URID_Map [] {
 				new LV2_URID_Map {
 					handle = IntPtr.Zero,
-					map = (handle, uri) => map (handle, Marshal.PtrToStringAnsi (uri))
+					map = _map
 				}
 			};
 			Pin (a);
+			*/
+			Pin (new URIDMapMarshal { Handle = new IntPtr (GetHashCode ()), Map = _map });
+		}
+
+		public override void Dispose ()
+		{
+			delegate_pin.Free ();
+			base.Dispose ();
 		}
 	}
 
-	public class OptionFeature : FeatureDisposable
+	public class OptionFeature : Lv2FeatureData
 	{
 		public OptionFeature (int/*LV2_Options_Context*/ context, uint subject, uint/*LV2_Atom_URID*/ key, uint size, uint/*LV2_Atom_URID*/ type, IntPtr value)
 		{
