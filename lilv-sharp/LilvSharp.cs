@@ -638,39 +638,46 @@ namespace LilvSharp
 
 		public UIs UIs => new UIs (Natives.lilv_plugin_get_uis (handle));
 
-		[StructLayout (LayoutKind.Sequential)]
-		class LV2_Feature_Marshal
-		{
-			public IntPtr URI;
-			public IntPtr Data;
-		}
-
 		public Instance Instantiate (double sampleRate, Feature [] features)
 		{
 			var gcHandles = new List<GCHandle> ();
-			var nativeFeatures = new List<LV2_Feature_Marshal> ();
+			var nativeFeatures = new List<LV2_Feature> ();
 			var hGlobals = new List<IntPtr> ();
+			var ptrArray = new IntPtr [features.Length + 1];
 			foreach (var f in features) {
 				var uriPtr = Marshal.StringToHGlobalAnsi (f.URI);
 				hGlobals.Add (uriPtr);
+				Console.Error.WriteLine ("UNIPTR: " + uriPtr);
 				Console.Error.WriteLine ($"  argument feature URI: {f?.URI} of type {f?.Data?.GetType ()} ({f?.Data?.Handle})");
-				var nf = new LV2_Feature_Marshal { Data = f.Data == null ? IntPtr.Zero : f.Data.Handle, URI = uriPtr };
+				var nf = new LV2_Feature { URI = uriPtr, data = f.Data == null ? IntPtr.Zero : f.Data.Handle, };
 				nativeFeatures.Add (nf);
 			}
-			nativeFeatures.Add (null); // NULL terminator
 
 			var nfArray = nativeFeatures.ToArray ();
 			var nfHandle = GCHandle.Alloc (nfArray, GCHandleType.Pinned);
 			try {
 				var nfPtr = nfHandle.AddrOfPinnedObject ();
-				for (IntPtr p = nfPtr; Marshal.ReadIntPtr (p) != IntPtr.Zero; p += Marshal.SizeOf<IntPtr> ()) {
+				
+				for (int i = 0; i < features.Length; i++)
+					ptrArray [i] = nfPtr + i * Marshal.SizeOf<IntPtr> ();
+				ptrArray [features.Length] = IntPtr.Zero;
+				gcHandles.Add (GCHandle.Alloc (ptrArray, GCHandleType.Pinned));
+				var ptrArrayPtr = Marshal.UnsafeAddrOfPinnedArrayElement (ptrArray, 0);
+				
+				for (IntPtr p = ptrArrayPtr; p != IntPtr.Zero; p += Marshal.SizeOf<IntPtr> ()) {
 					Console.Error.WriteLine ("PTR: " + p);
-					var v = Marshal.PtrToStructure<LV2_Feature_Marshal> (Marshal.ReadIntPtr (p));
-					Console.Error.WriteLine ("    -- " + v.URI);
-					Console.Error.WriteLine ("    -- " + v.Data);
+					var ptr = Marshal.ReadIntPtr (p);
+					if (ptr == IntPtr.Zero)
+						break;
+					var v = Marshal.PtrToStructure<LV2_Feature> (ptr);
+					Console.Error.WriteLine ("    -- " + Marshal.PtrToStringAnsi (v.URI));
+					Console.Error.WriteLine ("    -- " + v.data);
+					var d = Marshal.PtrToStructure<URIDFeature.URIDMapMarshal> (v.data);
+					Console.Error.WriteLine ("    -- " + d.Map (IntPtr.Zero, IntPtr.Zero));
 				}
+				
 				return Instance.Get (
-					Natives.lilv_plugin_instantiate (handle, sampleRate, nfPtr),
+					Natives.lilv_plugin_instantiate (handle, sampleRate, ptrArrayPtr),
 					allocator);
 			} finally {
 				nfHandle.Free ();
@@ -1156,7 +1163,7 @@ namespace LV2Sharp
 		GCHandle delegate_pin;
 		
 		[StructLayout (LayoutKind.Sequential)]
-		class URIDMapMarshal
+		internal class URIDMapMarshal
 		{
 			public IntPtr Handle;
 			public Delegates.delegate9 Map;

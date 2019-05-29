@@ -247,7 +247,7 @@ namespace LV2Sharp
 			gcHandles.Add (GCHandle.Alloc (Lv2ExtUris.FeatureUridMap, GCHandleType.Pinned));
 			
 			features.Add (new Feature { URI = Lv2ExtUris.FeatureUridMap, Data = uridMapFeature });
-			features.Add (new Feature { URI = Lv2ExtUris.FeatureOptions, Data = optionFeature });
+			//features.Add (new Feature { URI = Lv2ExtUris.FeatureOptions, Data = optionFeature });
 
 			bool aborted = false;
 			var featuresArray = features.ToArray ();
